@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const ANTHROPIC_API_KEY = "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";
 
@@ -1764,6 +1765,57 @@ ${pdfTxt.slice(0,8000)}`}]})});
   );
 }
 
+function getRevenueData(projects,paymentData){
+  const today=new Date();
+  const months=[];
+  for(let i=5;i>=0;i--){
+    const d=new Date(today.getFullYear(),today.getMonth()-i,1);
+    months.push({label:d.toLocaleDateString('en-US',{month:'short'}),year:d.getFullYear(),month:d.getMonth(),contracted:0,invoiced:0,collected:0});
+  }
+  for(const p of projects){
+    if(!p.start) continue;
+    const sd=new Date(p.start);
+    const bucket=months.find(m=>m.year===sd.getFullYear()&&m.month===sd.getMonth());
+    if(!bucket) continue;
+    bucket.contracted+=p.contract||0;
+    const ms=paymentData[p.id]||[];
+    for(const m of ms){
+      if(m.status==='Collected'){bucket.collected+=m.amount||0;bucket.invoiced+=m.amount||0;}
+      else if(m.status==='Invoiced'){bucket.invoiced+=m.amount||0;}
+    }
+  }
+  return months;
+}
+
+function getSLADonut(projects){
+  const active=projects.filter(p=>p.status==='In Progress');
+  const counts={green:0,amber:0,red:0,none:0};
+  for(const p of active){const z=getSLAStatus(p).zone;counts[z in counts?z:'none']++;}
+  const total=active.length||1;
+  return[
+    {name:'On Track (W1–6)',zone:'green', value:counts.green, color:'#27ae60',pct:Math.round(counts.green/total*100)},
+    {name:'Amber (W7–8)',   zone:'amber', value:counts.amber, color:'#f39c12',pct:Math.round(counts.amber/total*100)},
+    {name:'Red Zone',       zone:'red',   value:counts.red,   color:'#e74c3c',pct:Math.round(counts.red/total*100)},
+    {name:'No Date',        zone:'none',  value:counts.none,  color:'#666',   pct:Math.round(counts.none/total*100)},
+  ].filter(d=>d.value>0);
+}
+
+function getFinancialSummary(projects,paymentData){
+  const today=new Date();const ty=today.getFullYear();const tm=today.getMonth();
+  let thisMoC=0,thisMoX=0,ytdC=0,ytdX=0,totC=0,totX=0;
+  for(const p of projects){
+    const ms=paymentData[p.id]||[];
+    const collected=ms.filter(m=>m.status==='Collected').reduce((a,m)=>a+(m.amount||0),0);
+    totC+=p.contract||0;totX+=collected;
+    if(p.start){
+      const d=new Date(p.start);
+      if(d.getFullYear()===ty){ytdC+=p.contract||0;ytdX+=collected;}
+      if(d.getFullYear()===ty&&d.getMonth()===tm){thisMoC+=p.contract||0;thisMoX+=collected;}
+    }
+  }
+  return{thisMoC,thisMoX,ytdC,ytdX,rate:totC>0?Math.round(totX/totC*100):0};
+}
+
 const _fn=p=>p.client?p.client.trim().split(/\s+/)[0]:'there';
 const _td=()=>new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
@@ -2338,6 +2390,74 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           ))}
         </div>
       </div>
+      {(()=>{
+        const isDark=theme==='dark';
+        const revData=getRevenueData(projects,paymentData);
+        const slaData=getSLADonut(projects);
+        const fin=getFinancialSummary(projects,paymentData);
+        const tickClr=isDark?'#888':'#757575';
+        const gridClr=isDark?'#1e1e3a':'#e0e0e0';
+        const ttStyle={background:isDark?'#12122a':'#fff',border:`1px solid ${isDark?'#2a2a4a':'#e0e0e0'}`,borderRadius:6,fontSize:11,color:isDark?'#e0e0e0':'#212121'};
+        const lgStyle={fontSize:10,fontFamily:'monospace',color:isDark?'#888':'#757575'};
+        const fmtK=v=>v>=1000?'$'+Math.round(v/1000)+'k':'$'+v;
+        return(
+          <>
+            <div style={{marginTop:20,marginBottom:6}}><ST>Revenue Overview</ST></div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+              {/* Bar Chart */}
+              <div style={S.card}>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',fontFamily:'monospace',marginBottom:12,letterSpacing:'1px',textTransform:'uppercase'}}>Monthly Revenue — Last 6 Months</div>
+                <ResponsiveContainer width="100%" height={210}>
+                  <BarChart data={revData} margin={{top:4,right:8,left:0,bottom:0}} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridClr} vertical={false}/>
+                    <XAxis dataKey="label" tick={{fill:tickClr,fontSize:10,fontFamily:'monospace'}} axisLine={false} tickLine={false}/>
+                    <YAxis tickFormatter={fmtK} tick={{fill:tickClr,fontSize:9,fontFamily:'monospace'}} axisLine={false} tickLine={false} width={44}/>
+                    <Tooltip formatter={(v,n)=>['$'+Number(v).toLocaleString(),n]} contentStyle={ttStyle} labelStyle={{fontWeight:700,marginBottom:4}}/>
+                    <Legend wrapperStyle={lgStyle}/>
+                    <Bar dataKey="contracted" name="Contracted" fill="#3498db" radius={[2,2,0,0]}/>
+                    <Bar dataKey="invoiced"   name="Invoiced"   fill="#f39c12" radius={[2,2,0,0]}/>
+                    <Bar dataKey="collected"  name="Collected"  fill="#27ae60" radius={[2,2,0,0]}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Donut Chart */}
+              <div style={S.card}>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',fontFamily:'monospace',marginBottom:12,letterSpacing:'1px',textTransform:'uppercase'}}>Project SLA Distribution — Click to Filter</div>
+                <ResponsiveContainer width="100%" height={210}>
+                  <PieChart>
+                    <Pie data={slaData} cx="50%" cy="50%" innerRadius={52} outerRadius={82} paddingAngle={2} dataKey="value"
+                      onClick={entry=>{setFSLA(entry.zone);setTab('projects');}} cursor="pointer"
+                      label={({name,pct,value})=>`${value} (${pct}%)`} labelLine={false}
+                      labelStyle={{fontSize:9,fontFamily:'monospace',fill:tickClr}}>
+                      {slaData.map((entry,i)=><Cell key={i} fill={entry.color}/>)}
+                    </Pie>
+                    <Tooltip formatter={(v,n)=>[`${v} project${v!==1?'s':''}`,'SLA Zone: '+n]} contentStyle={ttStyle}/>
+                    <Legend wrapperStyle={lgStyle}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            {/* Financial Summary */}
+            <div style={S.card}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',fontFamily:'monospace',marginBottom:14,letterSpacing:'1px',textTransform:'uppercase'}}>Financial Summary</div>
+              <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                {[
+                  ['This Month Contracted','var(--kpi-3)',fmt$(fin.thisMoC)],
+                  ['This Month Collected', 'var(--kpi-2)',fmt$(fin.thisMoX)],
+                  ['YTD Contracted',       'var(--kpi-0)',fmt$(fin.ytdC)],
+                  ['YTD Collected',        'var(--kpi-2)',fmt$(fin.ytdX)],
+                  ['Collection Rate',      fin.rate>=70?'var(--kpi-2)':fin.rate>=40?'var(--kpi-3)':'var(--kpi-5)',fin.rate+'%'],
+                ].map(([label,color,value])=>(
+                  <div key={label} style={{...S.metric,flex:'1 1 140px',borderTopWidth:'var(--kpi-top-w)',borderTopStyle:'solid',borderTopColor:color}}>
+                    <div style={{fontSize:9,color:'var(--text-dim)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:8}}>{label}</div>
+                    <div style={{fontSize:20,fontWeight:700,color,fontFamily:'monospace'}}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </>
   );
 
