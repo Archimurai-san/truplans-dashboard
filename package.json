@@ -1,0 +1,45 @@
+{
+  "name": "truplans-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron.cjs",
+  "scripts": {
+    "dev": "concurrently \"node server.js\" \"vite\"",
+    "server": "node server.js",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:build": "vite build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
+    "electron:preview": "electron ."
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.8.1",
+    "vite": "^5.0.0",
+    "wait-on": "^9.0.5"
+  },
+  "build": {
+    "appId": "com.truplans.dashboard",
+    "productName": "TruPlans Dashboard",
+    "directories": { "output": "dist-electron" },
+    "files": [
+      "dist/**/*",
+      "electron.cjs",
+      "preload.js"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "public/icon.png"
+    }
+  }
+}

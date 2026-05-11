@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(tasklist *)",
+      "Bash(grep -n \"9px 10px\\\\|8px 10px\\\\|minWidth:80.*Pb\\\\|size={24}\\\\|size={20}\\\\|3px 7px\\\\|3px 8px\\\\|3px 10px\\\\|width:6,height:6\\\\|width:8,height:8\" src/App.jsx)",
+      "Bash(findstr /N \"setProjects\" src\\\\App.jsx)",
+      "Bash(timeout 5)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Radovan\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--TruPlans-truplans-dashboard\\\\22c37241-8571-4792-9a6b-ae04093ae6dd\\\\tasks\\\\buepi7qk7.output\")",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
