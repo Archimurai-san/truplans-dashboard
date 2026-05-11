@@ -354,37 +354,44 @@ function generateTasksFromProjects(projects){
     const tasks=[];
     for(const project of projects){
       try{
-        if(project.status!=='In Progress') continue;
-        const sla=getSLAStatus(project);
-        const priority=sla.zone==='red'?'High':sla.zone==='amber'?'Medium':'Low';
-        const designer=project.designer||'Unknown';
-        if(project.workflow&&project.workflow.length>0){
-          for(const m of project.workflow){
-            if(m.status==='Completed') continue;
-            tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc:String(m.label||m.milestoneId||''),assigned:String(m.assigned||designer),due:String(m.endDate||''),priority,status:m.status==='In Progress'?'In Progress':m.status==='Blocked'?'Blocked':'Not Started'});
+        if(!project||project.status!=='In Progress') continue;
+        let slaZone='none';
+        try{slaZone=getSLAStatus(project).zone;}catch{}
+        const priority=slaZone==='red'?'High':slaZone==='amber'?'Medium':'Low';
+        const designer=String(project.designer||'Unknown');
+
+        // Use workflow milestones if user has actively tracked them (any non-default status)
+        const wf=Array.isArray(project.workflow)?project.workflow:[];
+        const wfTracked=wf.length>0&&wf.some(m=>m&&m.status!=='Not Started');
+
+        const startDate=String(project.start||project.startDate||'');
+        if(wfTracked){
+          for(const m of wf){
+            if(!m||m.status==='Completed') continue;
+            const status=m.status==='In Progress'?'In Progress':m.status==='Blocked'?'Blocked':'Not Started';
+            tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc:String(m.label||m.milestoneId||''),assigned:String(m.assigned||designer),due:String(m.endDate||''),stepId:String(m.milestoneId||''),startDate,priority,status});
           }
         } else {
           const phases=Array.isArray(project.phases)?project.phases:[];
-          const curIdx=phases.findIndex(ph=>ph.status==='in_progress');
-          let shown=0;
-          const firstNS=phases.findIndex(ph=>ph.status==='not_started');
-          const start=curIdx>=0?curIdx:firstNS>=0?firstNS:0;
-          for(let i=start;i<phases.length&&shown<3;i++){
-            const ph=phases[i];
-            if(!ph||ph.status==='done') continue;
-            const wf=PHASES_WILLIS_WORKFLOW.find(w=>w.id===ph.id);
-            const due=project.start?String(addDays(project.start,getStepDays(ph.id))||''):'';
-            tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc:String(wf?wf.label:ph.id),assigned:designer,due,priority,status:ph.status==='in_progress'?'In Progress':'Not Started'});
-            shown++;
+          const startIdx=Math.max(0,phases.findIndex(ph=>ph&&(ph.status==='in_progress'||ph.status==='not_started')));
+          for(let i=startIdx;i<phases.length;i++){
+            try{
+              const ph=phases[i];
+              if(!ph||ph.status==='done') continue;
+              const def=PHASES_WILLIS_WORKFLOW.find(w=>w&&w.id===ph.id);
+              const desc=String(def?def.name:ph.id||'Unknown step');
+              const status=ph.status==='in_progress'?'In Progress':'Not Started';
+              tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc,assigned:designer,due:'',stepId:String(ph.id||''),startDate,priority,status});
+            }catch{}
           }
-          if(shown===0&&project.phase){
-            tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc:String(project.phase),assigned:designer,due:String(project.end||''),priority,status:'In Progress'});
+          if(!tasks.some(t=>t.job===String(project.id||''))&&project.phase){
+            tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc:String(project.phase),assigned:designer,due:'',stepId:'',startDate,priority,status:'In Progress'});
           }
         }
       }catch(pe){console.error('Task gen error for',project?.id,pe);}
     }
     const pO={High:0,Medium:1,Low:2},sO={'In Progress':0,'Blocked':1,'Not Started':2};
-    tasks.sort((a,b)=>{const p=pO[a.priority]-pO[b.priority];return p!==0?p:(sO[a.status]||2)-(sO[b.status]||2);});
+    tasks.sort((a,b)=>{const p=(pO[a.priority]??2)-(pO[b.priority]??2);return p!==0?p:(sO[a.status]??2)-(sO[b.status]??2);});
     return tasks;
   }catch(e){console.error('generateTasksFromProjects failed:',e);return [];}
 }
@@ -1816,6 +1823,27 @@ function getFinancialSummary(projects,paymentData){
   return{thisMoC,thisMoX,ytdC,ytdX,rate:totC>0?Math.round(totX/totC*100):0};
 }
 
+const STEP_WEEKS={'5.1':1,'5.2':1,'5.3':1,'5.4':2,'5.5':2,'5.6':3,'5.7':3,'5.8':4,'5.9':5,'5.10':5,'5.11':5,'5.12':6,'5.13':6,'5.14':6,'5.15':7,'5.19':7,'5.16':8,'5.20':8,'5.17':9,'5.18':10};
+function computeDue(stepId,startDate){try{if(!stepId||!startDate||!STEP_WEEKS[stepId])return null;const d=new Date(startDate);if(isNaN(d.getTime()))return null;d.setDate(d.getDate()+STEP_WEEKS[stepId]*7);return d;}catch{return null;}}
+function formatDue(dueDate){try{if(!dueDate)return null;const today=new Date();today.setHours(0,0,0,0);const diff=Math.round((dueDate-today)/86400000);if(diff<0)return{text:`Overdue ${Math.abs(diff)}d`,overdue:true};if(diff===0)return{text:'Due today',overdue:true};return{text:`Due ${dueDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`,overdue:false};}catch{return null;}}
+
+function UserSelectModal({teamMembers,onSelect}){
+  const [sel,setSel]=useState(Object.keys(teamMembers)[0]||'Radovan');
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{background:'var(--bg-card)',border:'1px solid var(--border-primary)',borderRadius:12,padding:'36px 32px',width:340,textAlign:'center',boxShadow:'0 16px 48px rgba(0,0,0,0.6)'}}>
+        <div style={{fontSize:36,marginBottom:12}}>👋</div>
+        <div style={{fontSize:18,fontWeight:700,color:'var(--text-bright)',marginBottom:6}}>Who are you?</div>
+        <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:24,lineHeight:1.5}}>Tasks will default to showing your work.</div>
+        <select value={sel} onChange={e=>setSel(e.target.value)} style={{...S.input,fontSize:14,marginBottom:20,textAlign:'center'}}>
+          {Object.keys(teamMembers).sort().map(n=><option key={n}>{n}</option>)}
+        </select>
+        <button onClick={()=>onSelect(sel)} style={{...S.btn,width:'100%',fontSize:13,padding:'10px 0'}}>Let's go →</button>
+      </div>
+    </div>
+  );
+}
+
 const _fn=p=>p.client?p.client.trim().split(/\s+/)[0]:'there';
 const _td=()=>new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
@@ -2226,16 +2254,50 @@ export default function App(){
     setProjects(prev=>prev.map(p=>p.id===ctrP.id?{...p,...updates}:p));
   };
   const pickPDF=async(project)=>{const fp=await window.electronAPI?.openFile();if(fp) saveContractPath(project.id,fp);};
+  const toggleTaskComplete=(projectId,stepId,done)=>{
+    if(!projectId||!stepId) return;
+    setProjects(prev=>prev.map(p=>{
+      if(String(p.id)!==String(projectId)) return p;
+      const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:done?'done':'not_started',dateCompleted:done?new Date().toISOString().slice(0,10):null}:ph);
+      return{...p,phases};
+    }));
+  };
 
   const MemberAv=({name,size})=><Av name={name} size={size} colorMap={teamMembers}/>;
   const [confirmDelete,setConfirmDelete]=useState(null);
   const deleteProject=(id)=>{setProjects(prev=>prev.filter(p=>p.id!==id));setConfirmDelete(null);setSelP(null);};
+  const [currentUser,setCurrentUser]=useState(()=>{try{return localStorage.getItem("current-user")||null;}catch{return null;}});
+  const [showUserSelect,setShowUserSelect]=useState(()=>{
+    try{
+      const stored=localStorage.getItem("current-user");
+      const lastLaunch=localStorage.getItem("last-launch-date");
+      const today=new Date().toISOString().slice(0,10);
+      localStorage.setItem("last-launch-date",today);
+      const noUser=!stored||stored.trim()==='';
+      const newDay=lastLaunch!==today;
+      console.log('[TruPlans] current-user value:',JSON.stringify(stored),'| last-launch-date:',lastLaunch,'| today:',today,'| noUser:',noUser,'| newDay:',newDay);
+      return noUser||newDay;
+    }catch(e){console.error('[TruPlans] showUserSelect init error:',e);return true;}
+  });
+  const selectUser=name=>{setCurrentUser(name);try{localStorage.setItem("current-user",name);}catch{}setFTD(name);setShowUserSelect(false);};
   const [fSLA,setFSLA]=useState("All");
-  const [fTD,setFTD]=useState("All");
+  const [fTD,setFTD]=useState(()=>{try{return localStorage.getItem("current-user")||"All";}catch{return "All";}});
   const [fTP,setFTP]=useState("All");
   const [fTS,setFTS]=useState("All");
+  const [fTQ,setFTQ]=useState("");
   const generatedTasks=useMemo(()=>generateTasksFromProjects(projects),[projects]);
-  const filteredTasks=useMemo(()=>generatedTasks.filter(t=>(fTD==="All"||t.assigned===fTD)&&(fTP==="All"||t.priority===fTP)&&(fTS==="All"||t.status===fTS)),[generatedTasks,fTD,fTP,fTS]);
+  const filteredTasks=useMemo(()=>{
+    try{
+      const q=fTQ.trim().toLowerCase();
+      return generatedTasks.filter(t=>{
+        if(fTD!=="All"&&t.assigned!==fTD) return false;
+        if(fTP!=="All"&&t.priority!==fTP) return false;
+        if(fTS!=="All"&&t.status!==fTS) return false;
+        if(q&&!String(t.projectName||'').toLowerCase().includes(q)&&!String(t.desc||'').toLowerCase().includes(q)&&!String(t.job||'').toLowerCase().includes(q)) return false;
+        return true;
+      });
+    }catch{return generatedTasks;}
+  },[generatedTasks,fTD,fTP,fTS,fTQ]);
   const searchResults=useMemo(()=>searchProjects(searchQ,projects),[searchQ,projects]);
   const goToProject=id=>{setDetailProjectId(id);setTab('projects');setSearchQ('');setSearchOpen(false);};
   const handleSearchKeyDown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setSearchQ('');setSearchOpen(false);}};
@@ -2585,36 +2647,70 @@ Set included:true/false per contract. Extract real payment milestones with amoun
   );
   const Tasks=()=>{
     try{
+      const hasFilters=fTD!=="All"||fTP!=="All"||fTS!=="All"||fTQ!=="";
+      const cols=[["",28],["Job #",92],["Project",128],["Task",null],["Designer",82],["Priority",65],["Status",82],["Due",96]];
       return(
         <div>
+          {/* Viewing as bar */}
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,padding:'7px 12px',background:'var(--bg-subtle)',borderRadius:6,border:'1px solid var(--border-primary)'}}>
+            <span style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace'}}>Viewing as:</span>
+            <span style={{fontSize:11,fontWeight:700,color:'var(--accent)',fontFamily:'monospace'}}>{currentUser||'Everyone'}</span>
+            <button onClick={()=>setShowUserSelect(true)} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:10,fontFamily:'monospace',textDecoration:'underline',padding:0}}>Switch</button>
+            {currentUser&&fTD===currentUser&&<span style={{fontSize:9,color:'var(--text-ghost)',fontFamily:'monospace',marginLeft:4}}>— filtered to your tasks</span>}
+          </div>
+          {/* Filter bar */}
           <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
             <select style={S.sel} value={fTD} onChange={e=>setFTD(e.target.value)}>{["All",...Object.keys(teamMembers).sort()].map(d=><option key={d}>{d}</option>)}</select>
             <select style={S.sel} value={fTP} onChange={e=>setFTP(e.target.value)}>{["All","High","Medium","Low"].map(p=><option key={p}>{p}</option>)}</select>
             <select style={S.sel} value={fTS} onChange={e=>setFTS(e.target.value)}>{["All","In Progress","Not Started","Blocked"].map(s=><option key={s}>{s}</option>)}</select>
-            {(fTD!=="All"||fTP!=="All"||fTS!=="All")&&<button style={{...S.ghost,padding:"4px 10px",fontSize:10}} onClick={()=>{setFTD("All");setFTP("All");setFTS("All");}}>✕ Clear</button>}
-            <span style={{fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}>{filteredTasks.length} tasks</span>
+            <input value={fTQ} onChange={e=>setFTQ(e.target.value)} placeholder="Search project or task..." style={{background:'var(--bg-input)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'4px 10px',borderRadius:4,fontSize:11,fontFamily:'monospace',width:190,outline:'none'}}/>
+            {hasFilters&&<button style={{...S.ghost,padding:"4px 10px",fontSize:10}} onClick={()=>{setFTD(currentUser||"All");setFTP("All");setFTS("All");setFTQ("");}}>✕ Clear</button>}
+            <span style={{fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}>{filteredTasks.length} task{filteredTasks.length!==1?'s':''}</span>
           </div>
           <table style={S.tbl}>
-            <thead><tr>{[["Job",110],["Task",null],["Designer",90],["Priority",70],["Status",85],["Due",80]].map(([h,w])=><th key={h} style={{...S.th,...(w?{width:w,minWidth:w}:{})}}>{h}</th>)}</tr></thead>
+            <thead><tr>{cols.map(([h,w])=><th key={h||'chk'} style={{...S.th,...(w?{width:w,minWidth:w}:{})}}>{h}</th>)}</tr></thead>
             <tbody>
-              {filteredTasks.map((t,i)=>(
-                <tr key={i} style={{background:i%2===0?"transparent":"var(--bg-row-alt)"}}>
-                  <td style={S.td}><div style={{fontFamily:"monospace",fontSize:9,fontWeight:700,color:"var(--accent)"}}>{t.job}</div><div style={{fontSize:9,color:"var(--text-muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:105}}>{t.projectName}</div></td>
-                  <td style={{...S.td,color:"var(--text-body)",maxWidth:260}}>{t.desc}</td>
-                  <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:5}}>{t.assigned&&<MemberAv name={t.assigned} size={18}/>}<span style={{fontSize:10,color:"var(--text-sub)"}}>{t.assigned}</span></div></td>
-                  <td style={S.td}><span style={{color:t.priority==='High'?"var(--sla-red-text)":t.priority==='Medium'?"var(--status-hold-text)":"var(--status-done-text)",fontSize:10,fontWeight:700,fontFamily:"monospace"}}>{t.priority}</span></td>
-                  <td style={S.td}><Sb status={t.status||'Not Started'}/></td>
-                  <td style={{...S.td,color:"var(--text-muted)",fontFamily:"monospace",fontSize:10}}>{t.due}</td>
-                </tr>
-              ))}
-              {filteredTasks.length===0&&<tr><td colSpan={6} style={{...S.td,textAlign:"center",color:"var(--text-faint)",padding:"24px"}}>No open tasks match the current filters.</td></tr>}
+              {filteredTasks.map((t,i)=>{
+                const due=computeDue(t.stepId,t.startDate);
+                const dueFmt=due?formatDue(due):t.startDate?{text:'No date set',overdue:false}:null;
+                return(
+                  <tr key={i} style={{background:i%2===0?"transparent":"var(--bg-row-alt)"}}>
+                    <td style={{...S.td,textAlign:'center',paddingLeft:8}}>
+                      {t.stepId&&<input type="checkbox" title="Mark complete" style={{width:14,height:14,cursor:'pointer',accentColor:'var(--accent)'}}
+                        onChange={e=>{if(e.target.checked)toggleTaskComplete(t.job,t.stepId,true);}}/>}
+                    </td>
+                    <td style={{...S.td,fontFamily:"monospace",fontSize:9,fontWeight:700,color:"var(--accent)",whiteSpace:"nowrap"}}>{t.job||'—'}</td>
+                    <td style={{...S.td,fontSize:10,color:"var(--text-sub)",maxWidth:128,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.projectName||'—'}</td>
+                    <td style={{...S.td,color:"var(--text-body)",maxWidth:280}}>{t.desc||'—'}</td>
+                    <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:5}}>{t.assigned&&teamMembers[t.assigned]&&<MemberAv name={t.assigned} size={18}/>}<span style={{fontSize:10,color:"var(--text-sub)"}}>{t.assigned||'—'}</span></div></td>
+                    <td style={S.td}><span style={{color:t.priority==='High'?"var(--sla-red-text)":t.priority==='Medium'?"var(--status-hold-text)":"var(--status-done-text)",fontSize:10,fontWeight:700,fontFamily:"monospace"}}>{t.priority||'Low'}</span></td>
+                    <td style={S.td}><Sb status={t.status||'Not Started'}/></td>
+                    <td style={{...S.td,fontFamily:'monospace',fontSize:9,color:dueFmt?.overdue?'var(--sla-red-text)':'var(--text-muted)',fontWeight:dueFmt?.overdue?700:400,whiteSpace:'nowrap'}}>
+                      {dueFmt?dueFmt.text:<span style={{color:'var(--text-ghost)'}}>No date set</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredTasks.length===0&&(
+                <tr><td colSpan={8} style={{...S.td,textAlign:"center",padding:"32px"}}>
+                  {hasFilters
+                    ?<span style={{color:"var(--text-faint)",fontFamily:"monospace",fontSize:11}}>No tasks match the current filters.</span>
+                    :<span style={{color:"var(--status-done-text)",fontFamily:"monospace",fontSize:13,fontWeight:700}}>✓ All caught up! No pending tasks.</span>}
+                </td></tr>
+              )}
             </tbody>
           </table>
         </div>
       );
     }catch(err){
       console.error('Tasks render error:',err);
-      return<div style={{padding:24,color:"var(--sla-red-text)",fontFamily:"monospace",fontSize:12}}>Tasks error: {String(err)}</div>;
+      return(
+        <div style={{padding:32,textAlign:'center'}}>
+          <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
+          <div style={{color:"var(--sla-red-text)",fontFamily:"monospace",fontSize:12,marginBottom:8}}>Tasks tab encountered an error</div>
+          <div style={{color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>{String(err)}</div>
+        </div>
+      );
     }
   };
 
@@ -2705,6 +2801,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           to   { opacity:0; transform:translateX(-24px); }
         }
       `}</style>
+      {showUserSelect&&<UserSelectModal teamMembers={teamMembers} onSelect={selectUser}/>}
       {pdfPanel&&<PDFPanel panel={pdfPanel} onClose={()=>setPdfPanel(null)}/>}
       {paymentPanel&&<PaymentPanel project={paymentPanel} milestones={getProjectMilestones(paymentPanel,paymentData)} onClose={()=>setPaymentPanel(null)} onUpdate={savePaymentData}/>}
       {cityPanel&&<CityPanel project={cityPanel} initData={getCityData(cityPanel.id,cityData)} onClose={()=>setCityPanel(null)} onUpdate={saveCityData}/>}
@@ -2778,6 +2875,9 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           )}
         </div>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={()=>setShowUserSelect(true)} title="Switch active user" style={{background:"none",border:"1px solid var(--border-secondary)",color:"var(--text-muted)",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:10,fontFamily:"monospace",display:"flex",alignItems:"center",gap:5}}>
+            <span>👤</span><span style={{color:"var(--accent)",fontWeight:700}}>{currentUser||'?'}</span>
+          </button>
           <button onClick={()=>setShowTeamSettings(true)} style={{background:"none",border:"1px solid var(--border-secondary)",color:"var(--text-muted)",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>⚙ Team</button>
           <div style={{fontSize:10,color:"var(--text-faint)",fontFamily:"monospace"}}>{new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
           <div style={{position:'relative'}}>
