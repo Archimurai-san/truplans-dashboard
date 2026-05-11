@@ -1916,6 +1916,41 @@ export default function App(){
   const searchResults=useMemo(()=>searchProjects(searchQ,projects),[searchQ,projects]);
   const goToProject=id=>{setDetailProjectId(id);setTab('projects');setSearchQ('');setSearchOpen(false);};
   const handleSearchKeyDown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setSearchQ('');setSearchOpen(false);}};
+  const [reportGenerating,setReportGenerating]=useState(false);
+  const [reportStatus,setReportStatus]=useState(null);
+  const generateWeeklyReport=async()=>{
+    if(!window.electronAPI?.generateWeeklyReport){alert('PDF export requires the desktop app.');return;}
+    setReportGenerating(true);setReportStatus(null);
+    try{
+      const today=new Date();
+      const dateStr=today.toISOString().slice(0,10);
+      const generatedAt=today.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const active=projects.filter(p=>p.status==='In Progress');
+      const reportData={
+        date:dateStr,generatedAt,
+        projects:active.map(p=>{
+          const sla=getSLAStatus(p);
+          const ms=getProjectMilestones(p,paymentData);
+          const collected=ms.filter(m=>m.status==='Collected').reduce((a,m)=>a+m.amount,0);
+          const invoiced=ms.filter(m=>m.status==='Invoiced').reduce((a,m)=>a+m.amount,0);
+          const totalMs=ms.reduce((a,m)=>a+m.amount,0);
+          return{id:p.id,name:p.name,client:p.client,city:p.city,type:p.type,designer:p.designer,
+            status:p.status,phase:p.phase,pct:p.pct,contract:p.contract,start:p.start,
+            slaZone:sla.zone,slaWeek:sla.weekNum,slaDaysRemaining:sla.daysRemaining,slaIsExternal:sla.isExternal,
+            collected,invoiced,outstanding:totalMs-collected};
+        }),
+        designers:Object.keys(teamMembers).map(name=>({
+          name,
+          active:projects.filter(p=>(p.designer===name||(p.team||[]).includes(name))&&p.status==='In Progress').length,
+          asLead:projects.filter(p=>p.designer===name&&p.status==='In Progress').length,
+        })),
+      };
+      const result=await window.electronAPI.generateWeeklyReport(reportData);
+      setReportStatus({ok:true,filepath:result.filepath});
+      setTimeout(()=>setReportStatus(null),4000);
+    }catch(e){setReportStatus({ok:false,msg:String(e)});setTimeout(()=>setReportStatus(null),5000);}
+    setReportGenerating(false);
+  };
   const DS=["All",...Object.keys(teamMembers)];
   const SS=["All","In Progress","Completed","On Hold","Not Started"];
   const TS=["All","Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
@@ -2358,6 +2393,14 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {({...NOTIF_DEF,...notifPrefs}).enabled&&<div style={{position:'absolute',top:1,right:1,width:6,height:6,borderRadius:'50%',background:'var(--accent)',pointerEvents:'none'}}/>}
           </div>
           <div style={{minWidth:52,textAlign:'right'}}>{saveStatus==='saved'?<span style={{fontSize:10,color:'#27ae60',fontFamily:'monospace',fontWeight:700}}>Saved ✓</span>:<div style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'var(--border-secondary)'}}/>}</div>
+          <div style={{position:'relative'}}>
+            <button onClick={generateWeeklyReport} disabled={reportGenerating} title="Generate Weekly Report PDF" style={{background:"none",border:"1px solid var(--border-secondary)",color:reportGenerating?"var(--text-faint)":"var(--text-muted)",borderRadius:4,padding:"4px 8px",cursor:reportGenerating?"default":"pointer",fontSize:15,lineHeight:1}}>
+              {reportGenerating?'⏳':'🖨'}
+            </button>
+            {reportStatus&&<div style={{position:'absolute',right:0,top:'calc(100% + 6px)',background:reportStatus.ok?'var(--status-done-bg)':'var(--sla-red-bg)',color:reportStatus.ok?'var(--status-done-text)':'var(--sla-red-text)',border:`1px solid ${reportStatus.ok?'var(--status-done-text)':'var(--sla-red-text)'}33`,borderRadius:6,padding:'8px 12px',fontSize:10,fontFamily:'monospace',whiteSpace:'nowrap',zIndex:300,boxShadow:'0 4px 16px rgba(0,0,0,0.3)'}}>
+              {reportStatus.ok?`✓ Saved to Desktop`:`✕ ${reportStatus.msg}`}
+            </div>}
+          </div>
           <button onClick={toggleTheme} style={{background:"none",border:"1px solid var(--toggle-border)",color:"var(--text-muted)",borderRadius:99,padding:"4px 12px",cursor:"pointer",fontSize:10,fontFamily:"monospace",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>{theme==="dark"?"☀️ Light":"🌙 Dark"}</button>
         </div>
       </nav>
