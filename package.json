@@ -1,5 +1,7 @@
 {
   "name": "truplans-dashboard",
+  "description": "TruPlans project management dashboard for architectural design and construction workflows",
+  "author": "Radovan Marusic <marusic.radovan@gmail.com>",
   "private": true,
   "version": "1.0.0",
   "type": "module",
