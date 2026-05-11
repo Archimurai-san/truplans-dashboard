@@ -259,6 +259,52 @@ function calculateZone(startDate){
   return{week:weekNum,zone,daysUntilTarget};
 }
 
+const SEARCH_PRI={project:0,contract:1,workflow:2,phase:3};
+function searchProjects(query,projects){
+  if(!query||!query.trim()) return[];
+  const q=query.toLowerCase().trim();
+  const byProject=new Map();
+  const check=(p,field,text,type)=>{
+    if(!text) return;
+    const str=String(text).toLowerCase();
+    if(!str.includes(q)) return;
+    const ex=byProject.get(p.id);
+    if(!ex||SEARCH_PRI[type]<SEARCH_PRI[ex.type])
+      byProject.set(p.id,{projectId:p.id,projectName:p.name,field,text:String(text),type});
+  };
+  for(const p of projects){
+    check(p,'Name',p.name,'project');
+    check(p,'Job #',p.id,'project');
+    check(p,'Client',p.client,'project');
+    check(p,'City',p.city,'project');
+    check(p,'Type',p.type,'project');
+    check(p,'Designer',p.designer,'project');
+    check(p,'Status',p.status,'project');
+    check(p,'Phase',p.phase,'project');
+    check(p,'Notes',p.notes,'project');
+    for(const c of(p.contracts||[])){
+      for(const s of(c.designScope||[])) check(p,'Design scope',s.label,'contract');
+      for(const s of(c.constructionScope||[])) check(p,'Scope',s.label,'contract');
+      for(const m of(c.paymentMilestones||[])) check(p,'Payment',m.label,'contract');
+      for(const co of(c.changeOrders||[])) check(p,'Change order',co.description,'contract');
+      if(c.aiAnalysis?.summary) check(p,'AI summary',c.aiAnalysis.summary,'contract');
+      for(const r of(c.aiAnalysis?.riskFlags||[])) check(p,'Risk flag',r.text,'contract');
+      for(const a of(c.aiAnalysis?.actionItems||[])) check(p,'Action item',a.text,'contract');
+    }
+    for(const m of(p.workflow||[])){
+      check(p,'Workflow',m.label,'workflow');
+      if(m.notes) check(p,'Workflow note',m.notes,'workflow');
+      for(const t of(m.tasks||[])) check(p,'Task',t.text,'workflow');
+    }
+    for(const ph of(p.phases||[])){
+      if(ph.notes) check(p,'Phase note',ph.notes,'phase');
+    }
+  }
+  return[...byProject.values()]
+    .sort((a,b)=>SEARCH_PRI[a.type]-SEARCH_PRI[b.type])
+    .slice(0,10);
+}
+
 const PROJECTS_INIT = [
   // ── MOLLY'S PROJECTS ──────────────────────────────────────────────────────
   { id:"528",     name:"Monterrey",    client:"", city:"", type:"", designer:"Molly",   status:"In Progress", phase:"Engineering Coordination",  start:null, end:null, pct:0, stamp:"", permit:"", contract:0, invoiced:0, team:[], workflow:[], contracts:[], notes:"Structural engineering in progress" },
@@ -1739,6 +1785,9 @@ export default function App(){
       return [...saved,...newFromInit];
     }catch{return PROJECTS_INIT;}
   });
+  const [searchQ,setSearchQ]=useState('');
+  const [searchOpen,setSearchOpen]=useState(false);
+  const searchRef=useRef(null);
   const [showImport,setShowImport]=useState(false);
   const [assignP,setAssignP]=useState(null);
   const [workflowP,setWorkflowP]=useState(null);
@@ -1800,6 +1849,11 @@ export default function App(){
     triggerSave();
   },[projects]);
   useEffect(()=>{
+    const h=e=>{if(searchRef.current&&!searchRef.current.contains(e.target)){setSearchOpen(false);}};
+    document.addEventListener('mousedown',h);
+    return()=>document.removeEventListener('mousedown',h);
+  },[]);
+  useEffect(()=>{
     const runCheck=()=>{
       const np={...NOTIF_DEF,...notifPrefsRef.current};
       if(!np.enabled) return;
@@ -1859,6 +1913,9 @@ export default function App(){
   const [fTS,setFTS]=useState("All");
   const generatedTasks=useMemo(()=>generateTasksFromProjects(projects),[projects]);
   const filteredTasks=useMemo(()=>generatedTasks.filter(t=>(fTD==="All"||t.assigned===fTD)&&(fTP==="All"||t.priority===fTP)&&(fTS==="All"||t.status===fTS)),[generatedTasks,fTD,fTP,fTS]);
+  const searchResults=useMemo(()=>searchProjects(searchQ,projects),[searchQ,projects]);
+  const goToProject=id=>{setDetailProjectId(id);setTab('projects');setSearchQ('');setSearchOpen(false);};
+  const handleSearchKeyDown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setSearchQ('');setSearchOpen(false);}};
   const DS=["All",...Object.keys(teamMembers)];
   const SS=["All","In Progress","Completed","On Hold","Not Started"];
   const TS=["All","Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
@@ -2254,6 +2311,45 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       <nav style={S.nav}>
         <div style={S.logo}>TRUPLANS</div>
         {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
+        <div ref={searchRef} style={{position:'relative',marginLeft:16,display:'flex',alignItems:'center'}}>
+          <input
+            value={searchQ}
+            onChange={e=>{setSearchQ(e.target.value);setSearchOpen(true);}}
+            onFocus={()=>searchQ&&setSearchOpen(true)}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="🔍 Search projects..."
+            style={{background:'var(--bg-input)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'5px 32px 5px 10px',borderRadius:4,fontSize:11,fontFamily:'monospace',width:210,outline:'none'}}
+          />
+          {searchQ&&<button onClick={()=>{setSearchQ('');setSearchOpen(false);}} style={{position:'absolute',right:6,background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 2px'}} title="Clear">✕</button>}
+          {searchOpen&&searchResults.length>0&&(
+            <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,width:380,background:'var(--bg-card)',border:'1px solid var(--border-primary)',borderRadius:6,zIndex:300,boxShadow:'0 8px 32px rgba(0,0,0,0.5)',maxHeight:420,overflowY:'auto'}}>
+              {searchResults.map((r,i)=>(
+                <div key={i} onClick={()=>goToProject(r.projectId)}
+                  style={{padding:'9px 14px',cursor:'pointer',borderBottom:'1px solid var(--border-td)',display:'flex',gap:10,alignItems:'flex-start',background:i%2===0?'transparent':'var(--bg-row-alt)'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--bg-subtle)'}
+                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'transparent':'var(--bg-row-alt)'}
+                >
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'var(--text-bright)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.projectName}</div>
+                    <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',marginTop:2}}>
+                      <span style={{color:'var(--accent)'}}>{r.field}:</span>{' '}
+                      <span style={{color:'var(--text-body)'}}>{r.text.length>70?r.text.slice(0,70)+'…':r.text}</span>
+                    </div>
+                  </div>
+                  <span style={{fontSize:9,color:'var(--accent)',fontFamily:'monospace',flexShrink:0,marginTop:2,opacity:0.7}}>{r.projectId}</span>
+                </div>
+              ))}
+              <div style={{padding:'6px 14px',fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',textAlign:'center',borderTop:'1px solid var(--border-primary)'}}>
+                {searchResults.length} result{searchResults.length!==1?'s':''} · Esc to close
+              </div>
+            </div>
+          )}
+          {searchOpen&&searchQ.trim()&&searchResults.length===0&&(
+            <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,width:280,background:'var(--bg-card)',border:'1px solid var(--border-primary)',borderRadius:6,zIndex:300,padding:'14px',textAlign:'center',fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',boxShadow:'0 8px 32px rgba(0,0,0,0.5)'}}>
+              No results for "{searchQ}"
+            </div>
+          )}
+        </div>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>setShowTeamSettings(true)} style={{background:"none",border:"1px solid var(--border-secondary)",color:"var(--text-muted)",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>⚙ Team</button>
           <div style={{fontSize:10,color:"var(--text-faint)",fontFamily:"monospace"}}>{new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
