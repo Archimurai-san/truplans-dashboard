@@ -1764,6 +1764,269 @@ ${pdfTxt.slice(0,8000)}`}]})});
   );
 }
 
+const _fn=p=>p.client?p.client.trim().split(/\s+/)[0]:'there';
+const _td=()=>new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+const EMAIL_TEMPLATES=[
+  { id:'design-meeting', label:'Design Meeting', icon:'📐',
+    subject:p=>`Design Meeting Confirmation — ${p.client||'Client'} | TruPlans`,
+    body:(p,x)=>`Hi ${_fn(p)},
+
+I hope this message finds you well! We're excited to confirm your upcoming design meeting with TruPlans.
+
+📅 Meeting Details:
+• Project: ${p.name} (Job #${p.id})
+• Property: ${x.address||p.city||'TBD'}
+• Meeting Format: In-Person / Zoom (link below)
+• Zoom Link: [INSERT ZOOM LINK HERE]
+
+To make the most of our time together, please come prepared with:
+✓ Any inspiration photos or Pinterest boards
+✓ Questions about the project scope and deliverables
+✓ Ideas for finishes, materials, or layout preferences
+✓ Any HOA guidelines or architectural restrictions you're aware of
+
+Our design meeting is your opportunity to shape the vision for your project. We'll review the existing conditions, walk through design options, and align on next steps toward construction documents.
+
+Please reply to confirm you received this email, and let us know if you have any scheduling questions.
+
+Looking forward to meeting with you!
+
+Warm regards,
+${p.designer}
+TruPlans Design Team
+📞 [Phone Number]
+✉️ [Email Address]
+www.truplans.com`,
+  },
+  { id:'city-submittal', label:'City Submittal', icon:'🏛',
+    subject:p=>`Plans Submitted to City — ${p.client||'Client'} | TruPlans`,
+    body:(p,x)=>`Hi ${_fn(p)},
+
+Great news — we have officially submitted your architectural plans to the city building department!
+
+📋 Submittal Details:
+• Project: ${p.name} (Job #${p.id})
+• Property: ${x.address||p.city||'TBD'}
+• City / Jurisdiction: ${x.jurisdiction||p.city||'TBD'}
+• Plan Check #: ${x.planCheckNumber||'[Pending — will update once assigned]'}
+• Date Submitted: ${_td()}
+
+⏱ What to Expect:
+The city plan check process typically takes 4–6 weeks for initial review. During this time, the city may issue correction comments, which our team will address promptly on your behalf. You do not need to contact the city directly — all correspondence will be handled by TruPlans.
+
+📌 Important Reminder:
+Per your contract (§5.0), all plan check and permit fees are the homeowner's responsibility and are paid directly to the city. We will notify you when payment is required.
+
+We will keep you updated at every stage of the process. Please don't hesitate to reach out with any questions.
+
+Best regards,
+${p.designer}
+TruPlans Design Team
+📞 [Phone Number]
+✉️ [Email Address]
+www.truplans.com`,
+  },
+  { id:'hoa-submittal', label:'HOA Submittal', icon:'🏠',
+    subject:p=>`HOA Submittal Update — ${p.client||'Client'} | TruPlans`,
+    body:(p,x)=>`Hi ${_fn(p)},
+
+We're pleased to inform you that your architectural plans have been submitted to your Homeowners Association for approval.
+
+📋 HOA Submittal Details:
+• Project: ${p.name} (Job #${p.id})
+• Property: ${x.address||p.city||'TBD'}
+• HOA / Management Company: ${x.hoaName||'[HOA Name]'}
+• Date Submitted: ${_td()}
+• Expected Response: 4–6 weeks (varies by HOA)
+
+📌 What Happens Next:
+Your HOA will review the plans and either approve, request revisions, or request additional information. In the event revisions are requested, we will coordinate the updates and resubmit on your behalf.
+
+HOA Contact Information:
+• Contact: ${x.hoaContact||'[HOA Contact Name]'}
+• Phone: ${x.hoaPhone||'[HOA Phone]'}
+• Email: ${x.hoaEmail||'[HOA Email]'}
+
+Please note that HOA application fees and deposits are the homeowner's responsibility per your contract agreement. We will notify you immediately upon receiving the HOA's decision.
+
+Best regards,
+${p.designer}
+TruPlans Design Team
+📞 [Phone Number]
+✉️ [Email Address]
+www.truplans.com`,
+  },
+  { id:'payment-reminder', label:'Payment Reminder', icon:'💰',
+    subject:p=>`Payment Due — ${p.client||'Client'} | TruPlans Project ${p.id}`,
+    body:(p,x)=>`Hi ${_fn(p)},
+
+I hope all is going well with your project! This is a friendly reminder that a payment milestone is now due.
+
+💳 Payment Details:
+• Project: ${p.name} (Job #${p.id})
+• Milestone: ${x.milestoneName||'[Milestone Name]'}
+• Amount Due: ${x.milestoneAmount||'[Amount]'}
+• Due: Upon receipt of this notice
+
+Payment Options:
+• Preferred: Direct bank transfer (Zelle / ACH) — no processing fee
+• Credit / Debit Card: Accepted with a 2.9% surcharge
+• Check: Payable to TruPlans Inc. — please reference Job #${p.id}
+
+Per your contract agreement (§3.0), timely payments ensure your project remains on schedule. Late payments are subject to a 3% weekly penalty. If you have any questions about your invoice or need to discuss payment arrangements, please contact us right away.
+
+If you have already submitted payment, please disregard this notice — thank you!
+
+Best regards,
+${p.designer}
+TruPlans Design Team
+📞 [Phone Number]
+✉️ [Email Address]
+www.truplans.com`,
+  },
+  { id:'permit-approved', label:'Permit Approved!', icon:'✅',
+    subject:p=>`Permit Approved! — ${p.client||'Client'} | TruPlans`,
+    body:(p,x)=>`Hi ${_fn(p)},
+
+We have excellent news — your building permit has been approved! 🎉
+
+🏆 Permit Details:
+• Project: ${p.name} (Job #${p.id})
+• Property: ${x.address||p.city||'TBD'}
+• Permit Number: ${x.permitNumber||'[Permit Number]'}
+• Issued By: ${x.jurisdiction||'City Building Department'}
+• Approval Date: ${_td()}
+
+🔨 Next Steps:
+Your approved plans will now be coordinated with your contractor to begin construction. Here is what to expect:
+
+1. Pre-Construction Meeting — Your contractor will schedule a walkthrough to review the approved plans, timeline, and site logistics
+2. Material Confirmation — Please confirm any remaining material or finish selections before work begins
+3. Site Preparation — Contractor will set up site protection and temporary facilities
+4. Construction Begins — Estimated start: ${x.estStart||'[To be confirmed with contractor]'}
+
+📌 Important Reminders:
+• The approved permit must be visibly posted on-site during all construction phases
+• Keep your copy of the approved stamped plans in a safe place
+• All inspections will be coordinated by your contractor
+
+This is a major milestone — congratulations on getting here! We're proud to have guided your project through design and permitting. For questions regarding construction next steps, please coordinate directly with your contractor.
+
+Best regards,
+${p.designer}
+TruPlans Design Team
+📞 [Phone Number]
+✉️ [Email Address]
+www.truplans.com`,
+  },
+];
+
+function EmailModal({project,extra,onClose,onLog}){
+  const [activeIdx,setActiveIdx]=useState(0);
+  const [subject,setSubject]=useState(()=>EMAIL_TEMPLATES[0].subject(project));
+  const [body,setBody]=useState(()=>EMAIL_TEMPLATES[0].body(project,extra));
+  const [copied,setCopied]=useState(false);
+  const [logged,setLogged]=useState(false);
+  const [openFeedback,setOpenFeedback]=useState(false);
+  const [showFallback,setShowFallback]=useState(false);
+
+  const switchTmpl=idx=>{
+    setActiveIdx(idx);
+    setSubject(EMAIL_TEMPLATES[idx].subject(project));
+    setBody(EMAIL_TEMPLATES[idx].body(project,extra));
+    setCopied(false);setLogged(false);setOpenFeedback(false);setShowFallback(false);
+  };
+
+  const copyAll=()=>{
+    navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
+  };
+
+  const openEmailApp=async()=>{
+    navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);
+    const gmailUrl=`https://mail.google.com/mail/u/0/?view=cm&fs=1&su=${encodeURIComponent(subject)}`;
+    try{
+      await window.electronAPI.openExternal(gmailUrl);
+      setOpenFeedback(true);setTimeout(()=>setOpenFeedback(false),5000);
+    }catch(e){
+      setShowFallback(true);
+    }
+  };
+
+  const logSent=()=>{
+    onLog(project.id,{date:new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}),template:EMAIL_TEMPLATES[activeIdx].label,subject});
+    setLogged(true);setTimeout(()=>setLogged(false),2000);
+  };
+
+  const charCount=(subject.length+body.length).toLocaleString();
+
+  return(
+    <div style={S.ov} onClick={onClose}>
+      <div style={{...S.mod,maxWidth:900,height:'88vh',display:'flex',flexDirection:'column',position:'relative'}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16,flexShrink:0}}>
+          <div>
+            <div style={{fontSize:10,color:'var(--accent)',letterSpacing:'2px',fontFamily:'monospace',fontWeight:700}}>EMAIL TEMPLATES</div>
+            <div style={{fontSize:18,fontWeight:700,color:'var(--text-bright)'}}>{project.name}</div>
+            <div style={{fontSize:11,color:'var(--text-muted)'}}>{project.client}{extra.email&&` · ${extra.email}`}</div>
+          </div>
+          <button onClick={onClose} style={{...S.ghost,padding:'4px 10px',fontSize:16,lineHeight:1}}>✕</button>
+        </div>
+
+        <div style={{display:'flex',gap:16,flex:1,minHeight:0}}>
+          <div style={{width:148,flexShrink:0,display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px',textTransform:'uppercase',marginBottom:6}}>Templates</div>
+            {EMAIL_TEMPLATES.map((t,i)=>(
+              <button key={t.id} onClick={()=>switchTmpl(i)} style={{background:activeIdx===i?'var(--accent)':'transparent',color:activeIdx===i?'#fff':'var(--text-muted)',border:`1px solid ${activeIdx===i?'var(--accent)':'var(--border-secondary)'}`,borderRadius:4,padding:'7px 10px',cursor:'pointer',textAlign:'left',fontSize:11,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6,width:'100%'}}>
+                <span>{t.icon}</span><span style={{fontWeight:activeIdx===i?700:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{flex:1,display:'flex',flexDirection:'column',gap:10,minHeight:0}}>
+            <div style={{flexShrink:0}}>
+              <div style={S.label}>Subject</div>
+              <input value={subject} onChange={e=>setSubject(e.target.value)} style={{...S.input,fontSize:12}}/>
+            </div>
+            <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0}}>
+              <div style={S.label}>Body</div>
+              <textarea value={body} onChange={e=>setBody(e.target.value)} style={{...S.input,flex:1,resize:'none',fontSize:11,lineHeight:1.65,fontFamily:'Georgia,serif'}}/>
+            </div>
+          </div>
+        </div>
+
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:14,paddingTop:12,borderTop:'1px solid var(--border-primary)',flexShrink:0}}>
+          <span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace'}}>{charCount} characters</span>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
+            <button onClick={logSent} style={{...S.ghost,fontSize:10,padding:'5px 12px',borderColor:logged?'var(--status-done-text)':'var(--border-secondary)',color:logged?'var(--status-done-text)':'var(--text-muted)'}}>
+              {logged?'✓ Logged':'📋 Log Sent'}
+            </button>
+            <button onClick={copyAll} style={{...S.ghost,fontSize:10,padding:'5px 12px',background:copied?'var(--status-done-bg)':'transparent',color:copied?'var(--status-done-text)':'var(--accent)',borderColor:copied?'var(--status-done-text)':'var(--accent)'}}>
+              {copied?'✓ Copied!':'📋 Copy to Clipboard'}
+            </button>
+            <button onClick={openEmailApp} style={{...S.btn,fontSize:10,padding:'5px 14px',background:openFeedback?'#27ae60':'var(--accent)'}}>
+              {openFeedback?'✓ Gmail opened — paste body in':'✉️ Open in Gmail'}
+            </button>
+          </div>
+        </div>
+
+        {showFallback&&(
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.85)',borderRadius:10,display:'flex',flexDirection:'column',padding:24,zIndex:10}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'#f0f0f0'}}>Could not open browser — copy this manually</div>
+                <div style={{fontSize:11,color:'#888',marginTop:2}}>Select all and copy, then paste into your email client</div>
+              </div>
+              <button onClick={()=>setShowFallback(false)} style={{background:'none',border:'1px solid #444',color:'#888',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:14}}>✕</button>
+            </div>
+            <textarea readOnly value={`Subject: ${subject}\n\n${body}`} style={{...S.input,flex:1,resize:'none',fontSize:11,lineHeight:1.6,fontFamily:'Georgia,serif'}} onClick={e=>e.target.select()}/>
+            <button onClick={()=>{navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);setShowFallback(false);}} style={{...S.btn,marginTop:10,width:'100%'}}>📋 Copy All to Clipboard &amp; Close</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App(){
   const [tab,setTab]=useState("dashboard");
   const [fD,setFD]=useState("All");
@@ -1826,6 +2089,10 @@ export default function App(){
   const [hoaData,setHoaData]=useState(()=>{try{return JSON.parse(localStorage.getItem("hoa-submissions")||"{}");}catch{return {};}});
   const saveHoaData=(projectId,d)=>{const u={...hoaData,[projectId]:d};setHoaData(u);try{localStorage.setItem("hoa-submissions",JSON.stringify(u));}catch{}triggerSave();};
   const [hoaPanel,setHoaPanel]=useState(null);
+  const [emailLog,setEmailLog]=useState(()=>{try{return JSON.parse(localStorage.getItem("email-log")||"{}");}catch{return {};}});
+  const saveEmailLog=(projectId,entry)=>{const u={...emailLog,[projectId]:[...(emailLog[projectId]||[]),entry].slice(0,50)};setEmailLog(u);try{localStorage.setItem("email-log",JSON.stringify(u));}catch{}};
+  const [emailModal,setEmailModal]=useState(null);
+  const buildEmailExtra=p=>{const notes=parseNotes(p.notes||'');const city=getCityData(p.id,cityData);const hoa=getHOAData(p.id,hoaData);const ms=getProjectMilestones(p,paymentData);const pend=ms.find(m=>m.status==='Pending'&&m.amount>0);const ctr=p.contracts?.[0];return{address:notes.address,email:notes.email,phone:notes.phone,jurisdiction:city.jurisdiction,planCheckNumber:city.planCheckNumber,permitNumber:city.permitNumber,hoaName:hoa.hoaName,hoaContact:hoa.contactName,hoaPhone:hoa.contactPhone,hoaEmail:hoa.contactEmail,milestoneName:pend?.label||'',milestoneAmount:pend?'$'+Number(pend.amount).toLocaleString():'',estStart:ctr?.estStart||p.start||''};};
   const [analyseModal,setAnalyseModal]=useState(null);
   const handleAnalyseSave=(projectId,updates,milestones)=>{
     setProjects(prev=>prev.map(p=>p.id===projectId?{...p,...updates}:p));
@@ -2101,7 +2368,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           <td style={{...S.td,color:p.contract-p.invoiced>0?"#f0a842":"#52d68a",fontFamily:"monospace",fontSize:10}}>{fmt$(p.contract-p.invoiced)}</td>
           <td style={S.td} onClick={e=>{e.stopPropagation();setCtrP(p);}}><span style={{fontSize:10,color:p.contracts.length>0?"var(--accent)":"var(--text-ghost)",cursor:"pointer",fontFamily:"monospace",fontWeight:700}}>{p.contracts.length>0?`📄 ${p.contracts.length}`:"+ Add"}</span></td>
           <td style={S.td} onClick={e=>e.stopPropagation()}>{contractPaths[p.id]?(<span title="View contract PDF" onClick={()=>setPdfPanel({project:p,filePath:contractPaths[p.id]})} style={{fontSize:18,cursor:"pointer",color:"#1565c0",userSelect:"none"}}>📄</span>):(<span title="Attach contract PDF" onClick={()=>pickPDF(p)} style={{fontSize:13,cursor:"pointer",color:"var(--text-ghost)",fontWeight:700,fontFamily:"monospace",userSelect:"none"}}>📎+</span>)}</td>
-          <td style={S.td}><div style={{display:"flex",gap:2}}><button title="Analyse Contract" style={{background:"none",border:"1px solid #8e44ad44",color:"#8e44ad",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setAnalyseModal(p);}}>🔍</button><button title="Workflow" style={{background:"none",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setWorkflowP(p);}}>📋</button><button title="Payments" style={{background:"none",border:"1px solid #f0a84244",color:"#f0a842",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPaymentPanel(p);}}>💰</button><button title="City" style={{background:"none",border:"1px solid #3498db44",color:"#3498db",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setCityPanel(p);}}>🏛</button><button title="HOA" style={{background:"none",border:getHOAData(p.id,hoaData).hoaRequired?"1px solid #27ae6044":"1px solid var(--border-secondary)",color:getHOAData(p.id,hoaData).hoaRequired?"#27ae60":"var(--text-ghost)",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setHoaPanel(p);}}>🏠</button><button style={{...S.ghost,padding:"1px 6px",fontSize:9}} onClick={e=>{e.stopPropagation();setSelP(p);}}>View</button><button style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:3,padding:"1px 5px",fontSize:9,cursor:"pointer",fontFamily:"monospace"}} onClick={e=>{e.stopPropagation();setConfirmDelete(p);}}>✕</button></div></td>
+          <td style={S.td}><div style={{display:"flex",gap:2}}><button title="Analyse Contract" style={{background:"none",border:"1px solid #8e44ad44",color:"#8e44ad",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setAnalyseModal(p);}}>🔍</button><button title="Workflow" style={{background:"none",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setWorkflowP(p);}}>📋</button><button title="Payments" style={{background:"none",border:"1px solid #f0a84244",color:"#f0a842",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPaymentPanel(p);}}>💰</button><button title="City" style={{background:"none",border:"1px solid #3498db44",color:"#3498db",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setCityPanel(p);}}>🏛</button><button title="HOA" style={{background:"none",border:getHOAData(p.id,hoaData).hoaRequired?"1px solid #27ae6044":"1px solid var(--border-secondary)",color:getHOAData(p.id,hoaData).hoaRequired?"#27ae60":"var(--text-ghost)",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setHoaPanel(p);}}>🏠</button><button title="Email Templates" style={{background:"none",border:"1px solid #1565c044",color:"#1565c0",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setEmailModal(p);}}>✉️</button><button style={{...S.ghost,padding:"1px 6px",fontSize:9}} onClick={e=>{e.stopPropagation();setSelP(p);}}>View</button><button style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:3,padding:"1px 5px",fontSize:9,cursor:"pointer",fontFamily:"monospace"}} onClick={e=>{e.stopPropagation();setConfirmDelete(p);}}>✕</button></div></td>
         </tr>)}</tbody>
       </table>
     </>
@@ -2326,6 +2593,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {hoaPanel&&<HOAPanel project={hoaPanel} initData={getHOAData(hoaPanel.id,hoaData)} onClose={()=>setHoaPanel(null)} onUpdate={saveHoaData}/>}
       {selP&&<PM/>}
       {ctrP&&<ContractModule project={ctrP} onClose={()=>setCtrP(null)} onUpdate={handleContractModuleUpdate}/>}
+      {emailModal&&<EmailModal project={emailModal} extra={buildEmailExtra(emailModal)} onClose={()=>setEmailModal(null)} onLog={saveEmailLog}/>}
       {intake&&<IM/>}
       {showImport&&<ImportModal/>}
       {confirmDelete&&(

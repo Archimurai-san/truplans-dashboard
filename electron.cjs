@@ -42,6 +42,12 @@ ipcMain.handle('shell-open-external', async (_event, url) => {
   return await shell.openExternal(url)
 })
 
+ipcMain.handle('open-external', async (_event, url) => {
+  const { shell } = require('electron')
+  await shell.openExternal(url)
+  return true
+})
+
 ipcMain.handle('read-file-base64', async (_event, filePath) => {
   try {
     const buffer = fs.readFileSync(filePath)
