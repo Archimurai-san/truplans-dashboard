@@ -7,6 +7,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFileBase64: (filePath) => ipcRenderer.invoke('read-file-base64',    filePath),
   focusWindow:           ()       => ipcRenderer.invoke('focus-window'),
   generateWeeklyReport:  (data)  => ipcRenderer.invoke('generate-weekly-report', data),
+  showNotification:      (opts)  => ipcRenderer.invoke('show-notification', opts),
+  onOpenProject:         (cb)    => {
+    const handler = (_e, id) => cb(id)
+    ipcRenderer.on('open-project', handler)
+    return () => ipcRenderer.removeListener('open-project', handler)
+  },
   getFilePath:    (filePath) => {
     if (!filePath) return ''
     const clean = filePath.replace(/\\/g, '/')

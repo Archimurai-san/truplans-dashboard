@@ -1837,8 +1837,9 @@ export default function App(){
   const [notifPrefs,setNotifPrefs]=useState(()=>{try{return JSON.parse(localStorage.getItem("notification-prefs")||"{}");}catch{return {};}});
   const [notifPanel,setNotifPanel]=useState(false);
   const [notifHistory,setNotifHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("notification-history")||"[]");}catch{return [];}});
+  const [notifUnread,setNotifUnread]=useState(0);
   const saveNotifPrefs=p=>{setNotifPrefs(p);try{localStorage.setItem("notification-prefs",JSON.stringify(p));}catch{}};
-  const addToHistory=entry=>{const h={id:Date.now(),date:new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),...entry};setNotifHistory(prev=>{const u=[h,...prev].slice(0,30);try{localStorage.setItem("notification-history",JSON.stringify(u));}catch{}return u;});};
+  const addToHistory=entry=>{const h={id:Date.now(),date:new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),...entry};setNotifHistory(prev=>{const u=[h,...prev].slice(0,30);try{localStorage.setItem("notification-history",JSON.stringify(u));}catch{}return u;});setNotifUnread(n=>n+1);};
   const projectsRef=useRef(projects);projectsRef.current=projects;
   const paymentDataRef=useRef(paymentData);paymentDataRef.current=paymentData;
   const notifPrefsRef=useRef(notifPrefs);notifPrefsRef.current=notifPrefs;
@@ -1866,9 +1867,8 @@ export default function App(){
       let sent=0;
       if(alerts.length>=3){
         const key=`summary-${today}-${alerts.length}`;
-        if(!shownToday[key]&&'Notification' in window){
-          const n=new Notification('TruPlans Dashboard',{body:`${alerts.length} projects need attention — click to review`});
-          n.onclick=()=>{window.electronAPI?.focusWindow();};
+        if(!shownToday[key]){
+          window.electronAPI?.showNotification({title:'TruPlans Dashboard',body:`${alerts.length} projects need attention — click to review`,projectId:null});
           newShown[key]=true;
           addToHistory({type:'summary',body:`${alerts.length} projects need attention`,actedOn:false});
           sent++;
@@ -1876,9 +1876,8 @@ export default function App(){
       }else{
         for(const a of alerts){
           if(sent>=5) break;
-          if(!shownToday[a.key]&&'Notification' in window){
-            const n=new Notification('TruPlans Dashboard',{body:a.body});
-            n.onclick=()=>{window.electronAPI?.focusWindow();setDetailProjectId(a.project.id);};
+          if(!shownToday[a.key]){
+            window.electronAPI?.showNotification({title:'TruPlans Dashboard',body:a.body,projectId:a.project.id});
             newShown[a.key]=true;
             addToHistory({type:a.type,body:a.body,projectId:a.project.id,actedOn:false});
             sent++;
@@ -1891,6 +1890,11 @@ export default function App(){
     const t=setTimeout(runCheck,3000);
     const iv=setInterval(runCheck,4*60*60*1000);
     return()=>{clearTimeout(t);clearInterval(iv);};
+  },[]);
+  useEffect(()=>{
+    if(!window.electronAPI?.onOpenProject) return;
+    const cleanup=window.electronAPI.onOpenProject(id=>{setDetailProjectId(id);setTab('projects');});
+    return cleanup;
   },[]);
   const [detailProjectId,setDetailProjectId]=useState(null);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
@@ -2389,8 +2393,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           <button onClick={()=>setShowTeamSettings(true)} style={{background:"none",border:"1px solid var(--border-secondary)",color:"var(--text-muted)",borderRadius:4,padding:"4px 10px",cursor:"pointer",fontSize:10,fontFamily:"monospace"}}>⚙ Team</button>
           <div style={{fontSize:10,color:"var(--text-faint)",fontFamily:"monospace"}}>{new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})}</div>
           <div style={{position:'relative'}}>
-            <button onClick={()=>setNotifPanel(v=>!v)} style={{background:"none",border:"1px solid var(--border-secondary)",color:"var(--text-muted)",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:14,lineHeight:1}} title="Notifications">🔔</button>
-            {({...NOTIF_DEF,...notifPrefs}).enabled&&<div style={{position:'absolute',top:1,right:1,width:6,height:6,borderRadius:'50%',background:'var(--accent)',pointerEvents:'none'}}/>}
+            <button onClick={()=>{setNotifPanel(v=>!v);setNotifUnread(0);}} style={{background:"none",border:"1px solid var(--border-secondary)",color:"var(--text-muted)",borderRadius:4,padding:"4px 8px",cursor:"pointer",fontSize:14,lineHeight:1}} title="Notifications">🔔</button>
+            {notifUnread>0&&<div style={{position:'absolute',top:1,right:1,width:6,height:6,borderRadius:'50%',background:'var(--accent)',pointerEvents:'none'}}/>}
           </div>
           <div style={{minWidth:52,textAlign:'right'}}>{saveStatus==='saved'?<span style={{fontSize:10,color:'#27ae60',fontFamily:'monospace',fontWeight:700}}>Saved ✓</span>:<div style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'var(--border-secondary)'}}/>}</div>
           <div style={{position:'relative'}}>

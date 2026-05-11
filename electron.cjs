@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
@@ -57,6 +57,20 @@ ipcMain.handle('focus-window', () => {
     mainWindow.show()
     mainWindow.focus()
   }
+})
+
+ipcMain.handle('show-notification', (_event, { title, body, projectId }) => {
+  if (!Notification.isSupported()) return
+  const n = new Notification({ title, body, silent: false })
+  n.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+      if (projectId) mainWindow.webContents.send('open-project', projectId)
+    }
+  })
+  n.show()
 })
 
 function buildReportHTML(data) {
