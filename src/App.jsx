@@ -337,7 +337,7 @@ const PROJECTS_INIT = [
   { id:"634",     name:"Doyle",        client:"", city:"", type:"", designer:"Shirley", status:"In Progress", phase:"Prepare HOA Submission",     start:null, end:null, pct:0, stamp:"", permit:"", contract:0, invoiced:0, team:[], workflow:[], contracts:[], notes:"AV — HOA Submittal. HOA still holding up / submittal not approved. Contract NEEDED." },
   // ── RADOVAN'S PROJECTS ───────────────────────────────────────────────────
   // ── NELSON — PRESERVED EXACTLY ────────────────────────────────────────────
-  { id:"TRU-012", name:"Nelson Loft Conversion", client:"Natalie Nelson", city:"Carlsbad", type:"High Ceiling Conv.", designer:"Radovan", status:"In Progress", phase:"Design Dev", start:"2026-03-09", end:"2026-07-31", pct:5, stamp:"No", permit:"No", contract:75896, invoiced:1000, team:["Ayana"], contracts:[NELSON_CONTRACT] },
+  { id:"644", name:"Nelson Loft Conversion", client:"Natalie Nelson", city:"Carlsbad", type:"High Ceiling Conv.", designer:"Radovan", status:"In Progress", phase:"Design Dev", start:"2026-03-09", end:"2026-07-31", pct:5, stamp:"No", permit:"No", contract:75896, invoiced:1000, team:["Ayana"], contracts:[NELSON_CONTRACT] },
   // ── DESHPANDE — PRESERVED EXACTLY ──────────────────────────────────────────
   { id:"647",     name:"Deshpande",         client:"Deshpande",                      city:"San Diego", type:"CALOFT",       designer:"Radovan", status:"In Progress", phase:"", start:null,         end:null, pct:0, stamp:"", permit:"", contract:0,     invoiced:0, team:[], workflow:[], contracts:[], notes:"CALOFT garage/loft conversion. Scripps Ranch. RM-1-1 zone. APN 319-581-22. HOA submittal pending. 10874 Caminito Arcada, San Diego, CA 92131." },
   // ── PEECHA-GONZALEZ — PRESERVED EXACTLY ────────────────────────────────────
@@ -346,7 +346,7 @@ const PROJECTS_INIT = [
   ...p,
   startDate:p.start,
   targetDate:addDays(p.start,56),
-  phases:p.id==="TRU-012"
+  phases:p.id==="644"
     ?PHASES_WILLIS_WORKFLOW.map(pw=>
         ["5.1","5.2","5.3","5.4","5.5","5.6","5.7"].includes(pw.id)?{id:pw.id,status:"done",dateCompleted:"2026-03-24",initials:"WT",notes:""}
         :["5.8","5.9","5.10"].includes(pw.id)?{id:pw.id,status:"done",dateCompleted:"2026-03-26",initials:"WT",notes:""}
@@ -871,34 +871,47 @@ function HOAPanel({project,initData,onClose,onUpdate}){
   );
 }
 
-const ANALYSE_PROMPT=`This is a TruPlans work order contract PDF. Extract the following data exactly as it appears and return ONLY valid JSON with no markdown:
+const ANALYSE_PROMPT=`You are analysing a construction or architectural services contract PDF.
 
-PAGE 1:
-- Client last name (field labeled HOMEOWNER / CLIENT INFORMATION)
-- Client first names (second line under last name)
-- Full property address (street, city, zip)
-- Phone 1, Phone 2 (if any)
-- Email address
-- Work Order date (DATE field top right)
-- Signed On date (SIGNED ON field)
-- Project number (PROJECT # field)
-- DocuSign Envelope ID (top of document)
+STEP 1 — DETECT FORMAT:
+- If the document contains "CALOFT CORP" or "HIGH CEILING CONVERSION" → FORMAT 2 (CALOFT Construction Contract)
+- Otherwise → FORMAT 1 (TruPlans Work Order)
 
-PAGE 3: Architectural Design & Construction Documents total (yellow highlighted dollar amount)
-PAGE 4: Civil/Soils/Special Engineering total (ESTIMATE PAYMENT E)
-PAGE 5: Structural Engineering total (ESTIMATE PAYMENT S, dollar amount next to S1)
-PAGE 6: Landscape total (ESTIMATE PAYMENT L)
+STEP 2 — EXTRACT based on detected format:
 
-PAGE 7 — PAYMENT SCHEDULE (critical): Extract EVERY payment line item with exact name and dollar amount:
-- All numbered architectural payments (1 through however many)
-- E1 civil engineering payment if present
-- S1 structural engineering payment if present
-- L1 landscape payment if present
+=== FORMAT 1: TruPlans Work Order ===
+Set contractFormat: "TRUPLANS"
+PAGE 1: clientLastName, clientFirstNames (HOMEOWNER/CLIENT INFORMATION section), fullAddress, phone1, phone2, email, workOrderDate (DATE field top right), signedDate (SIGNED ON field), projectNumber (PROJECT #), docusignId (DocuSign Envelope ID at top)
+PAGE 3: archTotal — Architectural Design & Construction Documents total (yellow highlighted)
+PAGE 4: civilTotal — Civil/Soils/Special Engineering total (ESTIMATE PAYMENT E)
+PAGE 5: structuralTotal — Structural Engineering total (ESTIMATE PAYMENT S)
+PAGE 6: landscapeTotal — Landscape total (ESTIMATE PAYMENT L)
+PAGE 7 — PAYMENT SCHEDULE: Extract EVERY payment line item (numbered 1+, plus E1/S1/L1 if present) with exact name and dollar amount. Each item: code, description, amount, trigger.
+PAGE 12: signatureDate, signedByName from client signature block.
 
-PAGE 12: Actual client signature date and client printed name as signed.
+=== FORMAT 2: CALOFT Construction Contract ===
+Set contractFormat: "CALOFT"
+- docusignId: Docusign Envelope ID at top
+- contractorCompany: "CALOFT CORP"
+- contractorLicense: CSLB number (e.g. "CSLB #970476")
+- clientLastName, clientFirstNames: from HOMEOWNER / PROPERTY INFO section
+- fullAddress: street, city, zip
+- phone1, phone2 (if present)
+- email: Email 1 field
+- contractDate: DATE field top right of page 1
+- signedDate: date from client signature page
+- grandTotal: CONTRACT TOTAL AMOUNT
+- approxStartDate: approximate start date if stated
+- approxCompletionDate: approximate completion date if stated
+- estimatedConstructionTime: e.g. "3-4 weeks"
+- paymentMilestones: all 8 milestones from PAYMENT SCHEDULE — code=1-8, description=milestone name, amount=dollar amount, trigger=payment trigger text:
+  1=DEPOSIT, 2=HOUSE SCANNING, 3=DESIGN, 4=MATERIAL DEPOSITS, 5=PREP & DEMO, 6=ROUGH INSPECTION, 7=DRYWALL SCREW, 8=FINAL INSPECTION
+- includedItems: array of description strings for all line items where included indicator is Y
+- excludedItems: array of description strings for all line items where included indicator is N
+- signatureDate, signedByName from signature page
 
-Return this exact JSON structure:
-{"clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","signedDate":"","projectNumber":"","docusignId":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"signatureDate":"","signedByName":""}`;
+Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if not applicable to the detected format:
+{"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 function AnalyseModal({project,onClose,onSave}){
   const [phase,setPhase]=useState('pick');
@@ -919,7 +932,7 @@ function AnalyseModal({project,onClose,onSave}){
       const b64=await window.electronAPI?.readFileBase64(filePath);
       if(!b64)throw new Error('Could not read file — check the path is accessible');
       const res=await fetch('http://localhost:3001/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:4000,
+        model:'claude-sonnet-4-20250514',max_tokens:6000,
         messages:[{role:'user',content:[
           {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
           {type:'text',text:ANALYSE_PROMPT}
@@ -946,12 +959,15 @@ function AnalyseModal({project,onClose,onSave}){
     const e=edited;
     const clientName=[e.clientFirstNames,e.clientLastName].filter(Boolean).join(' ');
     const notesParts=[];
+    if(e.contractorCompany)notesParts.push(`${e.contractorCompany}${e.contractorLicense?' '+e.contractorLicense:''}.`);
     if(e.signedDate)notesParts.push(`Signed ${e.signedDate}.`);
+    if(e.contractDate)notesParts.push(`Contract ${e.contractDate}.`);
     if(e.workOrderDate)notesParts.push(`Work Order ${e.workOrderDate}.`);
     if(e.archTotal)notesParts.push(`Arch $${Number(e.archTotal).toLocaleString()}`);
     if(e.structuralTotal)notesParts.push(`Structural $${Number(e.structuralTotal).toLocaleString()}`);
     if(e.civilTotal)notesParts.push(`Civil $${Number(e.civilTotal).toLocaleString()}`);
     if(e.grandTotal)notesParts.push(`Total $${Number(e.grandTotal).toLocaleString()}.`);
+    if(e.estimatedConstructionTime)notesParts.push(`Duration: ${e.estimatedConstructionTime}.`);
     if(e.fullAddress)notesParts.push(e.fullAddress+'.');
     if(e.phone1)notesParts.push(`Phone: ${e.phone1}.`);
     if(e.email)notesParts.push(`Email: ${e.email}.`);
@@ -963,7 +979,7 @@ function AnalyseModal({project,onClose,onSave}){
     onSave(project.id,{
       client:clientName||project.client,
       contract:Number(e.grandTotal)||0,
-      start:e.signedDate||e.signatureDate||e.workOrderDate||project.start,
+      start:e.signedDate||e.signatureDate||e.contractDate||e.workOrderDate||project.start,
       notes:notesParts.join(' ')
     },milestones);
     setPhase('saved');
@@ -971,13 +987,18 @@ function AnalyseModal({project,onClose,onSave}){
   };
 
   const FIELDS=[
+    ['contractFormat','Contract Format'],
     ['clientLastName','Last Name'],['clientFirstNames','First Name(s)'],
     ['fullAddress','Property Address'],['phone1','Phone 1'],['phone2','Phone 2'],
-    ['email','Email'],['workOrderDate','Work Order Date'],['signedDate','Signed On Date'],
-    ['projectNumber','Project #'],['docusignId','DocuSign ID'],
+    ['email','Email'],['workOrderDate','Work Order Date'],['contractDate','Contract Date'],
+    ['signedDate','Signed On Date'],['projectNumber','Project #'],['docusignId','DocuSign ID'],
+    ['contractorCompany','Contractor Company'],['contractorLicense','CSLB License'],
     ['archTotal','Arch Total ($)'],['civilTotal','Civil Total ($)'],
     ['structuralTotal','Structural Total ($)'],['landscapeTotal','Landscape Total ($)'],
-    ['grandTotal','Grand Total ($)'],['signatureDate','Signature Date'],['signedByName','Signed By'],
+    ['grandTotal','Grand Total ($)'],
+    ['approxStartDate','Approx Start Date'],['approxCompletionDate','Approx Completion'],
+    ['estimatedConstructionTime','Est. Construction Time'],
+    ['signatureDate','Signature Date'],['signedByName','Signed By'],
   ];
 
   return(
@@ -1001,8 +1022,8 @@ function AnalyseModal({project,onClose,onSave}){
               style={{border:'2px dashed var(--border-secondary)',borderRadius:8,padding:'48px 32px',textAlign:'center',cursor:'pointer',background:'var(--bg-page)',marginBottom:16,transition:'border-color .2s'}}
             >
               <div style={{fontSize:40,marginBottom:10}}>📄</div>
-              <div style={{fontSize:14,color:'var(--text-body)',marginBottom:4}}>Drop TruPlans contract PDF here or click to browse</div>
-              <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace'}}>Accepts TruPlans work order PDFs — server must be running on port 3001</div>
+              <div style={{fontSize:14,color:'var(--text-body)',marginBottom:4}}>Drop TruPlans Work Order or CALOFT Construction Contract PDF here or click to browse</div>
+              <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace'}}>Auto-detects format — server must be running on port 3001</div>
             </div>
             {filename&&<div style={{fontSize:12,color:'var(--status-done-text)',marginBottom:14,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6}}>✓ {filename}</div>}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
@@ -1038,6 +1059,14 @@ function AnalyseModal({project,onClose,onSave}){
                     />
                   </div>
                 ))}
+                {(edited.includedItems||[]).length>0&&<div style={{marginBottom:7}}>
+                  <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:2}}>Included Items ({edited.includedItems.length})</div>
+                  <textarea readOnly value={(edited.includedItems||[]).join('\n')} style={{...S.input,fontSize:10,height:80,resize:'vertical',opacity:0.7}}/>
+                </div>}
+                {(edited.excludedItems||[]).length>0&&<div style={{marginBottom:7}}>
+                  <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:2}}>Excluded Items ({edited.excludedItems.length})</div>
+                  <textarea readOnly value={(edited.excludedItems||[]).join('\n')} style={{...S.input,fontSize:10,height:80,resize:'vertical',opacity:0.7}}/>
+                </div>}
               </div>
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'2px',marginBottom:12}}>Payment Milestones ({(edited.paymentMilestones||[]).length})</div>
@@ -1054,7 +1083,7 @@ function AnalyseModal({project,onClose,onSave}){
                     ))}
                   </tbody>
                 </table>
-                {!(edited.paymentMilestones||[]).length&&<div style={{fontSize:11,color:'var(--text-faint)',padding:'20px 0',textAlign:'center'}}>No payment milestones extracted — check the PDF includes page 7</div>}
+                {!(edited.paymentMilestones||[]).length&&<div style={{fontSize:11,color:'var(--text-faint)',padding:'20px 0',textAlign:'center'}}>No payment milestones extracted</div>}
               </div>
             </div>
             <div style={{display:'flex',gap:8,justifyContent:'flex-end',borderTop:'1px solid var(--border-primary)',paddingTop:14}}>

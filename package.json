@@ -40,9 +40,11 @@
     "files": [
       "dist/**/*",
       "electron.cjs",
-      "preload.js",
-      "server.js",
-      "config.json"
+      "preload.js"
+    ],
+    "extraResources": [
+      { "from": "server.js", "to": "server.js" },
+      { "from": "config.json", "to": "config.json" }
     ],
     "win": {
       "target": [

@@ -13,9 +13,12 @@ function startServer() {
   } catch {}
 
   setTimeout(() => {
-    const serverPath = path.join(__dirname, 'server.js')
+    const serverPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'server.js')
+      : path.join(__dirname, 'server.js')
+    const serverCwd = app.isPackaged ? process.resourcesPath : __dirname
     serverProcess = spawn(process.execPath, [serverPath], {
-      cwd: __dirname,
+      cwd: serverCwd,
       stdio: 'ignore',
       detached: false
     })
