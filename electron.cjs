@@ -1,8 +1,27 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const { spawn } = require('child_process')
 
 let mainWindow
+let serverProcess = null
+
+function startServer() {
+  const { execSync } = require('child_process')
+  try {
+    execSync('npx kill-port 3001', { stdio: 'ignore' })
+  } catch {}
+
+  setTimeout(() => {
+    const serverPath = path.join(__dirname, 'server.js')
+    serverProcess = spawn(process.execPath, [serverPath], {
+      cwd: __dirname,
+      stdio: 'ignore',
+      detached: false
+    })
+    serverProcess.on('error', (err) => console.error('Server error:', err))
+  }, 1000)
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -228,7 +247,17 @@ ipcMain.handle('generate-weekly-report', async (_event, data) => {
 })
 
 app.disableHardwareAcceleration()
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  startServer()
+  setTimeout(createWindow, 3000)
+})
+
+app.on('before-quit', () => {
+  if (serverProcess) {
+    serverProcess.kill()
+    serverProcess = null
+  }
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

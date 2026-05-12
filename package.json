@@ -40,7 +40,9 @@
     "files": [
       "dist/**/*",
       "electron.cjs",
-      "preload.js"
+      "preload.js",
+      "server.js",
+      "config.json"
     ],
     "win": {
       "target": [
