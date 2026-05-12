@@ -1,6 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
+function fixDateYear(val) {
+  if (!val || !val.includes('-')) return val;
+  const [y, m, d] = val.split('-');
+  const year = parseInt(y);
+  if (year < 2000) {
+    return `${new Date().getFullYear()}-${m}-${d}`;
+  }
+  return val;
+}
+
 const ANTHROPIC_API_KEY = "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";
 
 const CONTRACT_TEMPLATE = {
@@ -709,7 +719,7 @@ function CityPanel({project,initData,onClose,onUpdate}){
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
           <Fld label="City / Jurisdiction"><input style={{...S.input,fontSize:12}} value={data.jurisdiction} onChange={e=>updT('jurisdiction',e.target.value)}/></Fld>
           <Fld label="Plan Check Status"><select style={{...S.input,width:'100%',fontSize:12}} value={data.planCheckStatus} onChange={e=>upd('planCheckStatus',e.target.value)}>{CITY_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></Fld>
-          <Fld label="First Submittal Date"><input type="date" style={{...S.input,fontSize:12}} value={data.firstSubmittalDate} onChange={e=>upd('firstSubmittalDate',e.target.value)}/></Fld>
+          <Fld label="First Submittal Date"><input type="date" style={{...S.input,fontSize:12}} value={data.firstSubmittalDate ? data.firstSubmittalDate.substring(0,10) : ''} onChange={e=>upd('firstSubmittalDate',fixDateYear(e.target.value))}/></Fld>
           <Fld label="Package / Reference #"><input style={{...S.input,fontSize:12}} value={data.packageRef} onChange={e=>updT('packageRef',e.target.value)} placeholder="e.g. PC-2026-1234"/></Fld>
           <Fld label="Plan Check Number"><input style={{...S.input,fontSize:12}} value={data.planCheckNumber} onChange={e=>updT('planCheckNumber',e.target.value)} placeholder="Assigned by city"/></Fld>
           <Fld label="Plan Checker Name"><input style={{...S.input,fontSize:12}} value={data.planCheckerName} onChange={e=>updT('planCheckerName',e.target.value)}/></Fld>
@@ -739,8 +749,8 @@ function CityPanel({project,initData,onClose,onUpdate}){
               </div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-              <Fld label="Comments Received"><input type="date" style={{...S.input,fontSize:11}} value={r.commentsDate} onChange={e=>updRound(i,'commentsDate',e.target.value)}/></Fld>
-              <Fld label="Corrections Submitted"><input type="date" style={{...S.input,fontSize:11}} value={r.submittedDate} onChange={e=>updRound(i,'submittedDate',e.target.value)}/></Fld>
+              <Fld label="Comments Received"><input type="date" style={{...S.input,fontSize:11}} value={r.commentsDate ? r.commentsDate.substring(0,10) : ''} onChange={e=>updRound(i,'commentsDate',fixDateYear(e.target.value))}/></Fld>
+              <Fld label="Corrections Submitted"><input type="date" style={{...S.input,fontSize:11}} value={r.submittedDate ? r.submittedDate.substring(0,10) : ''} onChange={e=>updRound(i,'submittedDate',fixDateYear(e.target.value))}/></Fld>
               <Fld label="# of Comments"><input type="number" style={{...S.input,fontSize:11}} value={r.numComments} onChange={e=>updRound(i,'numComments',e.target.value,true)}/></Fld>
             </div>
           </div>
@@ -749,8 +759,8 @@ function CityPanel({project,initData,onClose,onUpdate}){
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
           <Fld label="Permit Number"><input style={{...S.input,fontSize:12}} value={data.permitNumber} onChange={e=>updT('permitNumber',e.target.value)} placeholder="Issued by city"/></Fld>
           <Fld label="Permit Type"><input style={{...S.input,fontSize:12}} value={data.permitType} onChange={e=>updT('permitType',e.target.value)} placeholder="e.g. Building Permit"/></Fld>
-          <Fld label="Permit Approval Date"><input type="date" style={{...S.input,fontSize:12}} value={data.permitApprovalDate} onChange={e=>handleApproval(e.target.value)}/></Fld>
-          <Fld label="Permit Expiry Date"><input type="date" style={{...S.input,fontSize:12}} value={data.permitExpiryDate} onChange={e=>upd('permitExpiryDate',e.target.value)}/></Fld>
+          <Fld label="Permit Approval Date"><input type="date" style={{...S.input,fontSize:12}} value={data.permitApprovalDate ? data.permitApprovalDate.substring(0,10) : ''} onChange={e=>handleApproval(fixDateYear(e.target.value))}/></Fld>
+          <Fld label="Permit Expiry Date"><input type="date" style={{...S.input,fontSize:12}} value={data.permitExpiryDate ? String(data.permitExpiryDate).substring(0,10) : ''} onChange={e=>upd('permitExpiryDate',fixDateYear(e.target.value))}/></Fld>
         </div>
       </div>
     </div>
@@ -767,7 +777,7 @@ function HOAPanel({project,initData,onClose,onUpdate}){
   const addRevision=()=>{const revisions=[...(data.revisions||[]),{round:(data.revisions||[]).length+1,requestedDate:'',resubmittedDate:'',notes:'',status:'In Progress'}];commit({...data,revisions});};
   const updRevision=(i,field,value,txt=false)=>{const revisions=data.revisions.map((r,ri)=>ri===i?{...r,[field]:value}:r);const next={...data,revisions};if(txt){setData(next);dbt(`hp-${project.id}`,()=>onUpdate(project.id,dr.current));}else commit(next);};
   const removeRevision=i=>{const revisions=(data.revisions||[]).filter((_,ri)=>ri!==i).map((r,ri)=>({...r,round:ri+1}));commit({...data,revisions});setConfirmRemove(null);};
-  const toggleDoc=name=>{const docs={...(data.docs||{}),[name]:!(data.docs||{})[name]};onUpdate(project.id,{...data,docs});};
+  const toggleDoc=name=>{const docs={...(data.docs||{}),[name]:!(data.docs||{})[name]};commit({...data,docs});};
   const pickLetter=async()=>{const fp=await window.electronAPI?.openFile();if(fp)upd('approvalLetterPath',fp);};
   const badge=HOA_STATUS_BADGE[data.hoaStatus]||HOA_STATUS_BADGE['Not Started'];
   const Lbl=({t})=><div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t}</div>;
@@ -810,14 +820,14 @@ function HOAPanel({project,initData,onClose,onUpdate}){
             {data.feeRequired&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:16}}>
               <Fld label="Fee Amount ($)"><input type="number" style={{...S.input,fontSize:12}} value={data.feeAmount} onChange={e=>updT('feeAmount',e.target.value)}/></Fld>
               <Fld label="Fee Paid"><div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}><input type="checkbox" checked={!!data.feePaid} onChange={e=>upd('feePaid',e.target.checked)} style={{width:16,height:16,cursor:'pointer'}}/><span style={{fontSize:11,color:'var(--text-body)'}}>Paid</span></div></Fld>
-              {data.feePaid&&<Fld label="Date Paid"><input type="date" style={{...S.input,fontSize:12}} value={data.feePaidDate} onChange={e=>upd('feePaidDate',e.target.value)}/></Fld>}
+              {data.feePaid&&<Fld label="Date Paid"><input type="date" style={{...S.input,fontSize:12}} value={data.feePaidDate ? String(data.feePaidDate).substring(0,10) : ''} onChange={e=>upd('feePaidDate',fixDateYear(e.target.value))}/></Fld>}
             </div>}
             <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:14}}>HOA Submittal</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
               <Fld label="HOA Status"><select style={{...S.input,width:'100%',fontSize:12}} value={data.hoaStatus} onChange={e=>upd('hoaStatus',e.target.value)}>{HOA_STATUS_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></Fld>
-              <Fld label="Submittal Date"><input type="date" style={{...S.input,fontSize:12}} value={data.submittalDate} onChange={e=>upd('submittalDate',e.target.value)}/></Fld>
-              <Fld label="Expected Decision"><input type="date" style={{...S.input,fontSize:12}} value={data.expectedDecisionDate} onChange={e=>upd('expectedDecisionDate',e.target.value)}/></Fld>
-              <Fld label="Actual Decision"><input type="date" style={{...S.input,fontSize:12}} value={data.actualDecisionDate} onChange={e=>upd('actualDecisionDate',e.target.value)}/></Fld>
+              <Fld label="Submittal Date"><input type="date" style={{...S.input,fontSize:12}} value={data.submittalDate ? String(data.submittalDate).substring(0,10) : ''} onChange={e=>upd('submittalDate',fixDateYear(e.target.value))}/></Fld>
+              <Fld label="Expected Decision"><input type="date" style={{...S.input,fontSize:12}} value={data.expectedDecisionDate ? String(data.expectedDecisionDate).substring(0,10) : ''} onChange={e=>upd('expectedDecisionDate',fixDateYear(e.target.value))}/></Fld>
+              <Fld label="Actual Decision"><input type="date" style={{...S.input,fontSize:12}} value={data.actualDecisionDate ? String(data.actualDecisionDate).substring(0,10) : ''} onChange={e=>upd('actualDecisionDate',fixDateYear(e.target.value))}/></Fld>
             </div>
             <div style={{marginBottom:20}}>
               <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:8}}>Documents Submitted</div>
@@ -840,15 +850,15 @@ function HOAPanel({project,initData,onClose,onUpdate}){
                   </div>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-                  <Fld label="Date Requested"><input type="date" style={{...S.input,fontSize:11}} value={r.requestedDate} onChange={e=>updRevision(i,'requestedDate',e.target.value)}/></Fld>
-                  <Fld label="Date Resubmitted"><input type="date" style={{...S.input,fontSize:11}} value={r.resubmittedDate} onChange={e=>updRevision(i,'resubmittedDate',e.target.value)}/></Fld>
+                  <Fld label="Date Requested"><input type="date" style={{...S.input,fontSize:11}} value={r.requestedDate ? String(r.requestedDate).substring(0,10) : ''} onChange={e=>updRevision(i,'requestedDate',fixDateYear(e.target.value))}/></Fld>
+                  <Fld label="Date Resubmitted"><input type="date" style={{...S.input,fontSize:11}} value={r.resubmittedDate ? String(r.resubmittedDate).substring(0,10) : ''} onChange={e=>updRevision(i,'resubmittedDate',fixDateYear(e.target.value))}/></Fld>
                 </div>
                 <Fld label="Notes"><textarea style={{...S.input,height:50,resize:'vertical',fontSize:11}} value={r.notes} onChange={e=>updRevision(i,'notes',e.target.value,true)}/></Fld>
               </div>
             ))}
             <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:14,marginTop:8}}>Approval</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-              <Fld label="Approval Date"><input type="date" style={{...S.input,fontSize:12}} value={data.approvalDate} onChange={e=>upd('approvalDate',e.target.value)}/></Fld>
+              <Fld label="Approval Date"><input type="date" style={{...S.input,fontSize:12}} value={data.approvalDate ? String(data.approvalDate).substring(0,10) : ''} onChange={e=>upd('approvalDate',fixDateYear(e.target.value))}/></Fld>
               <Fld label="Approval Letter">
                 {data.approvalLetterPath?(<div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}><span style={{fontSize:10,color:'var(--status-done-text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>📄 {data.approvalLetterPath.split(/[/\\]/).pop()}</span><button onClick={()=>doOpenPath(data.approvalLetterPath)} style={{...S.ghost,fontSize:9,padding:'2px 8px',flexShrink:0}}>Open</button><button onClick={pickLetter} style={{fontSize:9,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',flexShrink:0}}>↺</button></div>):(<button onClick={pickLetter} style={{...S.ghost,fontSize:10,padding:'4px 10px',marginTop:4}}>📎 Attach</button>)}
               </Fld>
@@ -1291,8 +1301,8 @@ function WorkflowModal({project,projects,setProjects,teamMembers,onClose}){
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:12}}>
                       <div><label style={S.label}>Status</label><select style={{...S.sel,width:"100%"}} value={m.status} onChange={e=>update(idx,"status",e.target.value)}>{["Not Started","In Progress","Completed","Blocked"].map(s=><option key={s}>{s}</option>)}</select></div>
                       <div><label style={S.label}>Assigned</label><select style={{...S.sel,width:"100%"}} value={m.assigned} onChange={e=>update(idx,"assigned",e.target.value)}>{members.map(n=><option key={n}>{n}</option>)}</select></div>
-                      <div><label style={S.label}>Start Date</label><input type="date" style={S.input} value={m.startDate} onChange={e=>update(idx,"startDate",e.target.value)}/></div>
-                      <div><label style={S.label}>End Date</label><input type="date" style={S.input} value={m.endDate} onChange={e=>update(idx,"endDate",e.target.value)}/></div>
+                      <div><label style={S.label}>Start Date</label><input type="date" style={S.input} value={m.startDate ? String(m.startDate).substring(0,10) : ''} onChange={e=>update(idx,"startDate",fixDateYear(e.target.value))}/></div>
+                      <div><label style={S.label}>End Date</label><input type="date" style={S.input} value={m.endDate ? String(m.endDate).substring(0,10) : ''} onChange={e=>update(idx,"endDate",fixDateYear(e.target.value))}/></div>
                     </div>
                     <div style={{marginBottom:10}}>
                       <div style={{fontSize:9,color:"#888",fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>TASKS</div>
@@ -1564,7 +1574,7 @@ ${pdfTxt.slice(0,8000)}`}]})});
                           <div style={{display:"grid",gridTemplateColumns:"1fr 90px 140px",gap:8,marginBottom:8}}>
                             <div><label style={S.label}>Notes</label><input style={{...S.input,fontSize:10}} value={ph.notes} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,notes:e.target.value}:p))} placeholder="Notes..."/></div>
                             <div><label style={S.label}>Initials</label><input style={{...S.input,fontSize:10}} value={ph.initials} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,initials:e.target.value.toUpperCase().slice(0,3)}:p))} placeholder="WT" maxLength={3}/></div>
-                            <div><label style={S.label}>Date Completed</label><input type="date" style={{...S.input,fontSize:10}} value={ph.dateCompleted||""} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,dateCompleted:e.target.value}:p))}/></div>
+                            <div><label style={S.label}>Date Completed</label><input type="date" style={{...S.input,fontSize:10}} value={ph.dateCompleted ? String(ph.dateCompleted).substring(0,10) : ''} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,dateCompleted:fixDateYear(e.target.value)}:p))}/></div>
                           </div>
                           <div style={{display:"flex",gap:6}}>
                             {["not_started","in_progress","done"].map(s=>(
@@ -1708,7 +1718,7 @@ ${pdfTxt.slice(0,8000)}`}]})});
                 <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
                   <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW CHANGE ORDER</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr 100px",gap:8,alignItems:"end"}}>
-                    <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newCO.date} onChange={e=>setNewCO({...newCO,date:e.target.value})}/></div>
+                    <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newCO.date ? String(newCO.date).substring(0,10) : ''} onChange={e=>setNewCO({...newCO,date:fixDateYear(e.target.value)})}/></div>
                     <div><label style={S.label}>Description</label><input style={S.input} value={newCO.description} onChange={e=>setNewCO({...newCO,description:e.target.value})} placeholder="Scope change..."/></div>
                     <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newCO.amount} onChange={e=>setNewCO({...newCO,amount:e.target.value})} placeholder="0"/></div>
                     <button style={S.btn} onClick={addCO}>Add</button>
