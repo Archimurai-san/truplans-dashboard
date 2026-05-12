@@ -1,30 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const { spawn } = require('child_process')
 
 let mainWindow
-let serverProcess = null
-
-function startServer() {
-  const { execSync } = require('child_process')
-  try {
-    execSync('npx kill-port 3001', { stdio: 'ignore' })
-  } catch {}
-
-  setTimeout(() => {
-    const serverPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'server.js')
-      : path.join(__dirname, 'server.js')
-    const serverCwd = app.isPackaged ? process.resourcesPath : __dirname
-    serverProcess = spawn(process.execPath, [serverPath], {
-      cwd: serverCwd,
-      stdio: 'ignore',
-      detached: false
-    })
-    serverProcess.on('error', (err) => console.error('Server error:', err))
-  }, 1000)
-}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -249,18 +227,31 @@ ipcMain.handle('generate-weekly-report', async (_event, data) => {
   }
 })
 
-app.disableHardwareAcceleration()
-app.whenReady().then(() => {
-  startServer()
-  setTimeout(createWindow, 3000)
-})
-
-app.on('before-quit', () => {
-  if (serverProcess) {
-    serverProcess.kill()
-    serverProcess = null
+ipcMain.handle('analyse-contract', async (_event, payload) => {
+  try {
+    const configPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'config.json')
+      : path.join(__dirname, 'config.json')
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    const apiKey = config.anthropicKey
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(payload)
+    })
+    const data = await response.json()
+    return { ok: true, data }
+  } catch (err) {
+    return { ok: false, error: err.message }
   }
 })
+
+app.disableHardwareAcceleration()
+app.whenReady().then(createWindow)
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

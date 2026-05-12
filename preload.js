@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   focusWindow:           ()       => ipcRenderer.invoke('focus-window'),
   generateWeeklyReport:  (data)  => ipcRenderer.invoke('generate-weekly-report', data),
   showNotification:      (opts)  => ipcRenderer.invoke('show-notification', opts),
+  analyseContract:       (payload) => ipcRenderer.invoke('analyse-contract', payload),
   onOpenProject:         (cb)    => {
     const handler = (_e, id) => cb(id)
     ipcRenderer.on('open-project', handler)

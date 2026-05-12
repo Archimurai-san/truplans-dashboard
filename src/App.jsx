@@ -931,14 +931,15 @@ function AnalyseModal({project,onClose,onSave}){
     try{
       const b64=await window.electronAPI?.readFileBase64(filePath);
       if(!b64)throw new Error('Could not read file — check the path is accessible');
-      const res=await fetch('http://localhost:3001/api/claude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      const result=await window.electronAPI.analyseContract({
         model:'claude-sonnet-4-20250514',max_tokens:6000,
         messages:[{role:'user',content:[
           {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
           {type:'text',text:ANALYSE_PROMPT}
         ]}]
-      })});
-      const data=await res.json();
+      });
+      if(!result.ok)throw new Error(result.error);
+      const data=result.data;
       if(data.error)throw new Error(JSON.stringify(data.error));
       const raw=data.content?.[0]?.text||'{}';
       const m=raw.match(/\{[\s\S]*\}/);
@@ -1499,12 +1500,13 @@ function ContractModule({project,onClose,onUpdate}){
     if(!pdfTxt.trim())return;
     setAnalyzing(true);
     try{
-      const r=await fetch("http://localhost:3001/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`You are an expert architectural project manager at TruPlans Inc., a California residential design firm. Analyze this contract and return ONLY valid JSON (no markdown, no backticks):
+      const result=await window.electronAPI.analyseContract({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`You are an expert architectural project manager at TruPlans Inc., a California residential design firm. Analyze this contract and return ONLY valid JSON (no markdown, no backticks):
 {"summary":"2-3 sentence overview","scopeSummary":"included items as bullet list with \\n separators","paymentSummary":"payment schedule summary","obligations":"what TruPlans must deliver","riskFlags":[{"level":"HIGH|MEDIUM|LOW","text":"description"}],"actionItems":[{"done":false,"text":"action item"}]}
 
 CONTRACT:
-${pdfTxt.slice(0,8000)}`}]})});
-      const d=await r.json();
+${pdfTxt.slice(0,8000)}`}]});
+      if(!result.ok)throw new Error(result.error);
+      const d=result.data;
       const raw=d.content?.[0]?.text||"{}";
       const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
       const final={...parsed,generatedAt:new Date().toISOString().slice(0,10)};
@@ -2400,16 +2402,17 @@ export default function App(){
     try{
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
       setImportStep("AI is analyzing contract...");
-      const apiRes=await fetch("http://localhost:3001/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      const apiResult=await window.electronAPI.analyseContract({
         model:"claude-sonnet-4-20250514",max_tokens:4000,
         messages:[{role:"user",content:[
           {type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},
           {type:"text",text:`You are a project manager at TruPlans Inc., a California architectural design firm. Extract all info from this contract. Return ONLY valid JSON, no markdown, no backticks:
 {"project":{"id":"TRU-NEW","name":"short project name","client":"full client name","city":"city","type":"ADU - Accessory Dwelling Unit|Single Story Addition|Two Story Addition|Loft Addition|Garage Conversion|Simple Remodel|Open Concept Remodel|Whole House Makeover|Room Addition|Kitchen Remodel|Bathroom Remodel|Master Suite Addition|Build a Deck|Patio Cover|Build a Garage|CALOFT (Garage/Loft Conversion)|TruAdditions","designer":"Radovan","status":"In Progress","phase":"Design Dev","start":"YYYY-MM-DD","end":"YYYY-MM-DD","pct":0,"stamp":"No","permit":"No","contract":0,"invoiced":0},"contractData":{"id":"CTR-NEW","type":"Design + Construction","contractor":"contractor name","contractorLic":"license","signedDate":"YYYY-MM-DD","totalAmount":0,"estStart":"YYYY-MM-DD","estCompletion":"YYYY-MM-DD","constructionWeeks":"3-4","docusignId":"","designScope":[{"id":"0001","label":"Planning, Zoning & Research","included":true,"status":"Not Started"},{"id":"0002","label":"Design Meeting(s)","included":true,"status":"Not Started"},{"id":"0003","label":"Wholesale Showroom Access","included":true,"status":"N/A"},{"id":"0004","label":"Architectural Plans / Construction Documents","included":true,"status":"Not Started"},{"id":"0005","label":"Title 24 Energy Report","included":true,"status":"Not Started"},{"id":"0006","label":"HOA Package & Submission","included":true,"status":"Not Started"},{"id":"0008","label":"Structural Drawings & Engineer Wet Stamp","included":true,"status":"Not Started"},{"id":"0009","label":"Plan Check & Permit Process","included":true,"status":"Not Started"}],"constructionScope":[{"id":"0100","label":"Pre-Construction Meeting","included":true,"status":"Not Started"},{"id":"0101","label":"Site Protection","included":true,"status":"Not Started"},{"id":"0102","label":"Demolition & Shoring","included":true,"status":"Not Started"},{"id":"0103","label":"Debris & Haul Away","included":true,"status":"Not Started"},{"id":"0104","label":"New Footings","included":false,"status":"N/A"},{"id":"0151","label":"Retrofit Structural Shear Wall","included":false,"status":"N/A"},{"id":"0153","label":"Interior Walls","included":false,"status":"N/A"},{"id":"0154","label":"Low Wall (Pony Wall)","included":true,"status":"Not Started"},{"id":"0155","label":"Floor System Framing","included":true,"status":"Not Started"},{"id":"0175","label":"Forced Air Unit (FAU)","included":false,"status":"N/A"},{"id":"0177","label":"Air Ducts / Vents","included":true,"status":"Not Started"},{"id":"0201","label":"Electrical Panel Upgrade","included":false,"status":"N/A"},{"id":"0202","label":"New Electrical Circuits","included":true,"status":"Not Started"},{"id":"0203","label":"Power Outlets","included":true,"status":"Not Started"},{"id":"0204","label":"Recessed Lights","included":true,"status":"Not Started"},{"id":"0206","label":"Light Switches","included":true,"status":"Not Started"},{"id":"0210","label":"Smoke & CO Detectors","included":true,"status":"Not Started"},{"id":"0330","label":"Fire Sprinklers","included":true,"status":"Not Started"},{"id":"0400","label":"Stucco / Siding Repair","included":true,"status":"Not Started"},{"id":"0404","label":"Thermal Insulation","included":true,"status":"Not Started"},{"id":"0405","label":"Insulate Floor System","included":true,"status":"Not Started"},{"id":"0406","label":"Drywall","included":true,"status":"Not Started"},{"id":"0407","label":"Misc Drywall Patching","included":true,"status":"Not Started"},{"id":"0700","label":"Interior Doors","included":false,"status":"N/A"},{"id":"0708","label":"New Construction Windows","included":true,"status":"Not Started"},{"id":"0752","label":"Baseboards","included":true,"status":"Not Started"},{"id":"0754","label":"Stair / Balcony Railing","included":true,"status":"Not Started"},{"id":"0758","label":"Finish Flooring","included":false,"status":"N/A"},{"id":"0759","label":"Painting / Staining","included":false,"status":"N/A"}],"paymentMilestones":[],"homeownerObligations":[{"id":"ho1","label":"Provide house key / lockbox","done":false},{"id":"ho2","label":"Alarm system access / codes","done":false},{"id":"ho3","label":"HOA contact info submitted","done":false},{"id":"ho4","label":"Signed HOA application + neighbor form","done":false},{"id":"ho5","label":"HOA application fee paid","done":false},{"id":"ho6","label":"All plan check & permit fees paid by homeowner","done":false},{"id":"ho7","label":"Maintain utilities during construction","done":false},{"id":"ho8","label":"Punch list within 7 days of completion","done":false}],"hiddenConditionFlags":[{"id":"hc1","label":"New Footings required","flagged":false,"notes":""},{"id":"hc2","label":"Retrofit Shear Wall required","flagged":false,"notes":""},{"id":"hc3","label":"Lateral analysis required","flagged":false,"notes":""},{"id":"hc4","label":"T24 / HERS failure risk","flagged":false,"notes":""},{"id":"hc5","label":"Electrical panel inadequate","flagged":false,"notes":""},{"id":"hc6","label":"Mold / structural damage found","flagged":false,"notes":""},{"id":"hc7","label":"Duct soffit required","flagged":false,"notes":""}],"changeOrders":[],"aiAnalysis":{"generatedAt":"TODAY","summary":"summary here","scopeSummary":"scope bullets","paymentSummary":"payment summary","obligations":"TruPlans obligations","riskFlags":[{"level":"HIGH","text":"risk"}],"actionItems":[{"done":false,"text":"action item"}]}}}
 Set included:true/false per contract. Extract real payment milestones with amounts. project.contract=totalAmount. project.invoiced=deposit if paid else 0.`}
-        ]}]})});
+        ]}]});
+      if(!apiResult.ok)throw new Error(apiResult.error);
       setImportStep("Building project...");
-      const d=await apiRes.json();
+      const d=apiResult.data;
       if(d.error) throw new Error("API error: "+d.error);
       const raw=d.content?.[0]?.text||"{}";
       // Extract JSON even if wrapped in markdown

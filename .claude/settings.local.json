@@ -9,7 +9,12 @@
       "Bash(Start-Sleep -Seconds 5)",
       "Bash(Get-Content \"C:\\\\Users\\\\Radovan\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--TruPlans-truplans-dashboard\\\\22c37241-8571-4792-9a6b-ae04093ae6dd\\\\tasks\\\\buepi7qk7.output\")",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git config *)",
+      "Bash(git commit -m ' *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(node -e \"require\\('recharts'\\); console.log\\('ok'\\)\")",
+      "Bash(npm install *)"
     ]
   }
 }
