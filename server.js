@@ -25,9 +25,9 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/claude', async (req, res) => {
   if (!API_KEY) return res.status(500).json({ error: "No API key in config.json" });
-  res.setTimeout(310000);
+  res.setTimeout(610000);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 300000);
+  const timer = setTimeout(() => controller.abort(), 600000);
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
