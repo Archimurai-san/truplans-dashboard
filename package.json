@@ -18,6 +18,7 @@
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "googleapis": "^171.4.0",
     "node-fetch": "^3.3.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -43,8 +44,14 @@
       "preload.js"
     ],
     "extraResources": [
-      { "from": "server.js", "to": "server.js" },
-      { "from": "config.json", "to": "config.json" }
+      {
+        "from": "server.js",
+        "to": "server.js"
+      },
+      {
+        "from": "config.json",
+        "to": "config.json"
+      }
     ],
     "win": {
       "target": [

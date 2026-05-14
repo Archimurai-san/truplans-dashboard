@@ -4,4 +4,6 @@ dist-electron/
 *.local
 .env
 config.json
+credentials.json
+credentials.json.json
 *.docx

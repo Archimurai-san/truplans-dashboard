@@ -2148,6 +2148,116 @@ function EmailModal({project,extra,onClose,onLog}){
   );
 }
 
+function Inbox() {
+  const [connected, setConnected] = useState(null);
+  const [threads, setThreads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const checkStatus = () => {
+    setLoading(true);
+    setError(null);
+    fetch('http://localhost:3001/api/gmail/status')
+      .then(r => r.json())
+      .then(data => {
+        setConnected(data.connected);
+        if (data.connected) return fetchThreads();
+        setLoading(false);
+      })
+      .catch(() => { setError('Cannot reach server'); setLoading(false); });
+  };
+
+  const fetchThreads = () => {
+    fetch('http://localhost:3001/api/gmail/list')
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setError(data.error); } else { setThreads(data); }
+        setLoading(false);
+      })
+      .catch(() => { setError('Failed to load emails'); setLoading(false); });
+  };
+
+  useEffect(() => { checkStatus(); }, []);
+
+  const formatFrom = raw => {
+    const m = raw.match(/^"?([^"<]+)"?\s*</);
+    return m ? m[1].trim() : raw.replace(/<.*>/, '').trim() || raw;
+  };
+
+  const formatDate = raw => {
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d)) return raw;
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const sameYear = d.getFullYear() === now.getFullYear();
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+  };
+
+  const centerWrap = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 320, gap: 16 };
+
+  if (loading) return (
+    <div style={centerWrap}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '2px' }}>LOADING...</div>
+    </div>
+  );
+
+  if (error) return (
+    <div style={centerWrap}>
+      <div style={{ fontSize: 12, color: 'var(--sla-red-text)', fontFamily: 'monospace' }}>{error}</div>
+      <button onClick={checkStatus} style={{ padding: '7px 18px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace' }}>Retry</button>
+    </div>
+  );
+
+  if (!connected) return (
+    <div style={centerWrap}>
+      <div style={{ fontSize: 22, color: 'var(--text-bright)', fontWeight: 700, marginBottom: 4 }}>Connect Gmail</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20, textAlign: 'center', maxWidth: 380 }}>
+        Link your Google account to view your inbox here. A browser window will open to complete sign-in.
+      </div>
+      <button
+        onClick={() => window.open('http://localhost:3001/api/gmail/auth', '_blank')}
+        style={{ padding: '10px 28px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '1px' }}
+      >
+        CONNECT GMAIL
+      </button>
+      <button onClick={checkStatus} style={{ marginTop: 8, padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>
+        I've connected — Refresh
+      </button>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
+          INBOX · radovan.truplans@gmail.com · {threads.length} threads
+        </div>
+        <button onClick={checkStatus} style={{ padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>↺ Refresh</button>
+      </div>
+      {threads.length === 0 ? (
+        <div style={{ ...centerWrap, color: 'var(--text-faint)', fontSize: 12, fontFamily: 'monospace' }}>No emails</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {threads.map(t => (
+            <div key={t.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 6, padding: '11px 16px', display: 'grid', gridTemplateColumns: '180px 1fr auto', gap: '0 14px', alignItems: 'start' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.from}>
+                {formatFrom(t.from)}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{t.snippet}</div>
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', whiteSpace: 'nowrap', paddingTop: 2 }}>{formatDate(t.date)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App(){
   const [tab,setTab]=useState("dashboard");
   const [fD,setFD]=useState("All");
@@ -2876,7 +2986,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {assignP&&<AssignModal project={assignP} projects={projects} setProjects={setProjects} teamMembers={teamMembers} onClose={()=>setAssignP(null)}/>}
       <nav style={S.nav}>
         <div style={S.logo}>TRUPLANS</div>
-        {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
+        {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"],["inbox","Inbox"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
         <div ref={searchRef} style={{position:'relative',marginLeft:16,display:'flex',alignItems:'center'}}>
           <input
             value={searchQ}
@@ -2959,6 +3069,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
+            {tab==="inbox"&&<Inbox/>}
           </>
         )}
       </main>
