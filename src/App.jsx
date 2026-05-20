@@ -779,7 +779,12 @@ function HOAPanel({project,initData,onClose,onUpdate}){
   const updRevision=(i,field,value,txt=false)=>{const revisions=data.revisions.map((r,ri)=>ri===i?{...r,[field]:value}:r);const next={...data,revisions};if(txt){setData(next);dbt(`hp-${project.id}`,()=>onUpdate(project.id,dr.current));}else commit(next);};
   const removeRevision=i=>{const revisions=(data.revisions||[]).filter((_,ri)=>ri!==i).map((r,ri)=>({...r,round:ri+1}));commit({...data,revisions});setConfirmRemove(null);};
   const toggleDoc=name=>{const docs={...(data.docs||{}),[name]:!(data.docs||{})[name]};commit({...data,docs});};
-  const pickLetter=async()=>{const fp=await window.electronAPI?.openFile();if(fp)upd('approvalLetterPath',fp);};
+  const letterInputRef=useRef(null);
+  const pickLetter=async()=>{
+    if(window.electronAPI?.openFile){const fp=await window.electronAPI.openFile();if(fp)upd('approvalLetterPath',fp);}
+    else{letterInputRef.current?.click();}
+  };
+  const onLetterInputChange=e=>{const f=e.target.files?.[0];if(f){upd('approvalLetterPath',f.name);e.target.value='';}};
   const badge=HOA_STATUS_BADGE[data.hoaStatus]||HOA_STATUS_BADGE['Not Started'];
   const Lbl=({t})=><div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t}</div>;
   const Fld=({label,children,col})=><div style={{marginBottom:12,gridColumn:col||''}}><Lbl t={label}/>{children}</div>;
@@ -861,7 +866,8 @@ function HOAPanel({project,initData,onClose,onUpdate}){
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
               <Fld label="Approval Date"><input type="date" style={{...S.input,fontSize:12}} value={data.approvalDate ? String(data.approvalDate).substring(0,10) : ''} onChange={e=>upd('approvalDate',fixDateYear(e.target.value))}/></Fld>
               <Fld label="Approval Letter">
-                {data.approvalLetterPath?(<div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}><span style={{fontSize:10,color:'var(--status-done-text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>📄 {data.approvalLetterPath.split(/[/\\]/).pop()}</span><button onClick={()=>doOpenPath(data.approvalLetterPath)} style={{...S.ghost,fontSize:9,padding:'2px 8px',flexShrink:0}}>Open</button><button onClick={pickLetter} style={{fontSize:9,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',flexShrink:0}}>↺</button></div>):(<button onClick={pickLetter} style={{...S.ghost,fontSize:10,padding:'4px 10px',marginTop:4}}>📎 Attach</button>)}
+                <input ref={letterInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg" style={{display:'none'}} onChange={onLetterInputChange}/>
+                {data.approvalLetterPath?(<div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}><span style={{fontSize:10,color:'var(--status-done-text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>📄 {typeof data.approvalLetterPath==='string'?data.approvalLetterPath.split(/[/\\]/).pop():data.approvalLetterPath}</span><button onClick={()=>doOpenPath(data.approvalLetterPath)} style={{...S.ghost,fontSize:9,padding:'2px 8px',flexShrink:0}}>Open</button><button onClick={pickLetter} style={{fontSize:9,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',flexShrink:0}}>↺</button></div>):(<button onClick={pickLetter} style={{...S.ghost,fontSize:10,padding:'4px 10px',marginTop:4}}>📎 Attach</button>)}
               </Fld>
             </div>
             <Fld label="Conditions of Approval"><textarea style={{...S.input,height:80,resize:'vertical',fontSize:12}} value={data.approvalConditions} onChange={e=>updT('approvalConditions',e.target.value)} placeholder="List any conditions attached to the approval..."/></Fld>
@@ -2688,7 +2694,13 @@ export default function App(){
     if(!ctrP) return;
     setProjects(prev=>prev.map(p=>p.id===ctrP.id?{...p,...updates}:p));
   };
-  const pickPDF=async(project)=>{const fp=await window.electronAPI?.openFile();if(fp) saveContractPath(project.id,fp);};
+  const pdfInputRef=useRef(null);
+  const [pendingPdfProject,setPendingPdfProject]=useState(null);
+  const pickPDF=async(project)=>{
+    if(window.electronAPI?.openFile){const fp=await window.electronAPI.openFile();if(fp)saveContractPath(project.id,fp);}
+    else{setPendingPdfProject(project);pdfInputRef.current?.click();}
+  };
+  const onPdfInputChange=e=>{const f=e.target.files?.[0];if(f&&pendingPdfProject){saveContractPath(pendingPdfProject.id,f.name);setPendingPdfProject(null);e.target.value='';}};
   const toggleTaskComplete=(projectId,stepId,done)=>{
     if(!projectId||!stepId) return;
     setProjects(prev=>prev.map(p=>{
@@ -3332,6 +3344,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           <button onClick={toggleTheme} style={{background:"none",border:"1px solid var(--toggle-border)",color:"var(--text-muted)",borderRadius:99,padding:"4px 12px",cursor:"pointer",fontSize:10,fontFamily:"monospace",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>{theme==="dark"?"☀️ Light":"🌙 Dark"}</button>
         </div>
       </nav>
+      <input ref={pdfInputRef} type="file" accept=".pdf" style={{display:'none'}} onChange={onPdfInputChange}/>
       <main style={S.main}>
         {detailProject?(
           <ProjectDetail
