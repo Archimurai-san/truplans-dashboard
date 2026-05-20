@@ -2351,7 +2351,7 @@ function Inbox() {
           title="Close"
         >×</button>
       </div>
-      <div style={{ flex: 1, overflow: 'hidden', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {threadContent?.loading && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '2px' }}>LOADING...</div>
         )}
@@ -2362,7 +2362,7 @@ function Inbox() {
           threadContent.bodyHtml
             ? <iframe
                 srcDoc={threadContent.bodyHtml}
-                style={{ flex: 1, width: '100%', height: 0, border: 'none', background: '#fff', borderRadius: 4 }}
+                style={{ flex: 1, width: '100%', minHeight: 'calc(100vh - 260px)', border: 'none', background: '#fff', borderRadius: 4 }}
                 sandbox="allow-same-origin"
                 title="Email body"
               />
