@@ -944,17 +944,31 @@ function AnalyseModal({project,onClose,onSave}){
   const [filename,setFilename]=useState('');
   const [errMsg,setErrMsg]=useState('');
   const [edited,setEdited]=useState(null);
+  const fileInputRef=useRef(null);
 
   const pickFile=async()=>{
-    const fp=await window.electronAPI?.openFile();
-    if(fp){setFilePath(fp);setFilename(fp.split(/[/\\]/).pop());}
+    if(window.electronAPI?.openFile){
+      const fp=await window.electronAPI.openFile();
+      if(fp){setFilePath(fp);setFilename(fp.split(/[/\\]/).pop());}
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const onFileInputChange=e=>{
+    const f=e.target.files?.[0];
+    if(!f) return;
+    setFilename(f.name);
+    const reader=new FileReader();
+    reader.onload=ev=>{setFilePath({_blob:true,data:ev.target.result.split(',')[1],name:f.name});};
+    reader.readAsDataURL(f);
   };
 
   const analyse=async()=>{
     if(!filePath)return;
     setPhase('analysing');setErrMsg('');
     try{
-      const b64=await window.electronAPI?.readFileBase64(filePath);
+      const b64=filePath?._blob ? filePath.data : await window.electronAPI?.readFileBase64(filePath);
       if(!b64)throw new Error('Could not read file — check the path is accessible');
       const result=await window.electronAPI.analyseContract({
         model:'claude-sonnet-4-20250514',max_tokens:6000,
@@ -1042,10 +1056,11 @@ function AnalyseModal({project,onClose,onSave}){
         {phase==='pick'&&(
           <div>
             {errMsg&&<div style={{background:'var(--sla-red-bg)',color:'var(--sla-red-text)',padding:'8px 12px',borderRadius:4,marginBottom:14,fontSize:11,fontFamily:'monospace'}}>⚠ {errMsg}</div>}
+            <input ref={fileInputRef} type="file" accept=".pdf" style={{display:'none'}} onChange={onFileInputChange}/>
             <div
               onClick={pickFile}
               onDragOver={e=>e.preventDefault()}
-              onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f&&f.path){setFilePath(f.path);setFilename(f.name);}}}
+              onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(!f)return;if(f.path){setFilePath(f.path);setFilename(f.name);}else{setFilename(f.name);const r=new FileReader();r.onload=ev=>{setFilePath({_blob:true,data:ev.target.result.split(',')[1],name:f.name});};r.readAsDataURL(f);}}}
               style={{border:'2px dashed var(--border-secondary)',borderRadius:8,padding:'48px 32px',textAlign:'center',cursor:'pointer',background:'var(--bg-page)',marginBottom:16,transition:'border-color .2s'}}
             >
               <div style={{fontSize:40,marginBottom:10}}>📄</div>
