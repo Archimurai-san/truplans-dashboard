@@ -141,6 +141,43 @@ app.get('/api/gmail/list', async (req, res) => {
   }
 });
 
+app.get('/api/gmail/thread/:id', async (req, res) => {
+  if (!gmailRefreshToken) return res.status(401).json({ error: 'Not connected' });
+  const oauth2 = makeOAuth2Client();
+  if (!oauth2) return res.status(500).json({ error: 'Gmail credentials not configured' });
+  oauth2.setCredentials({ refresh_token: gmailRefreshToken });
+  try {
+    const gmail = google.gmail({ version: 'v1', auth: oauth2 });
+    const thread = await gmail.users.threads.get({ userId: 'me', id: req.params.id, format: 'full' });
+    const msg = thread.data.messages?.[thread.data.messages.length - 1];
+    const headers = msg?.payload?.headers || [];
+    const h = name => headers.find(hdr => hdr.name === name)?.value || '';
+
+    function extractBody(payload) {
+      if (!payload) return { html: '', text: '' };
+      if (payload.mimeType === 'text/html' && payload.body?.data)
+        return { html: Buffer.from(payload.body.data, 'base64').toString('utf8'), text: '' };
+      if (payload.mimeType === 'text/plain' && payload.body?.data)
+        return { html: '', text: Buffer.from(payload.body.data, 'base64').toString('utf8') };
+      if (payload.parts) {
+        let html = '', text = '';
+        for (const part of payload.parts) {
+          const r = extractBody(part);
+          if (r.html) html = r.html;
+          if (r.text) text = r.text;
+        }
+        return { html, text };
+      }
+      return { html: '', text: '' };
+    }
+
+    const { html, text } = extractBody(msg?.payload);
+    res.json({ from: h('From'), subject: h('Subject') || '(no subject)', date: h('Date'), bodyHtml: html, bodyText: text });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 function htmlPage(title, body) {
   return `<!DOCTYPE html><html><head><title>${title}</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:#f0f0f0"><div style="text-align:center;max-width:480px;padding:32px"><h2>${title}</h2>${body}</div></body></html>`;
 }

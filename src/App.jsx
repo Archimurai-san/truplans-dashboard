@@ -2201,6 +2201,8 @@ function Inbox() {
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedThread, setSelectedThread] = useState(null);
+  const [threadContent, setThreadContent] = useState(null);
 
   const checkStatus = () => {
     setLoading(true);
@@ -2224,6 +2226,20 @@ function Inbox() {
       })
       .catch(() => { setError('Failed to load emails'); setLoading(false); });
   };
+
+  const openThread = (t) => {
+    setSelectedThread(t);
+    setThreadContent({ loading: true, error: null });
+    fetch(`http://localhost:3001/api/gmail/thread/${t.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) setThreadContent({ loading: false, error: data.error });
+        else setThreadContent({ loading: false, error: null, ...data });
+      })
+      .catch(() => setThreadContent({ loading: false, error: 'Failed to load email' }));
+  };
+
+  const closeThread = () => { setSelectedThread(null); setThreadContent(null); };
 
   useEffect(() => { checkStatus(); }, []);
 
@@ -2276,20 +2292,27 @@ function Inbox() {
     </div>
   );
 
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
-          INBOX · radovan.truplans@gmail.com · {threads.length} threads
-        </div>
-        <button onClick={checkStatus} style={{ padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>↺ Refresh</button>
-      </div>
-      {threads.length === 0 ? (
-        <div style={{ ...centerWrap, color: 'var(--text-faint)', fontSize: 12, fontFamily: 'monospace' }}>No emails</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {threads.map(t => (
-            <div key={t.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 6, padding: '11px 16px', display: 'grid', gridTemplateColumns: '180px 1fr auto', gap: '0 14px', alignItems: 'start' }}>
+  const threadList = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      {threads.map(t => {
+        const isSelected = selectedThread?.id === t.id;
+        return (
+          <div
+            key={t.id}
+            onClick={() => openThread(t)}
+            style={{
+              background: isSelected ? 'var(--bg-hover, rgba(255,255,255,0.06))' : 'var(--bg-card)',
+              border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border-primary)'}`,
+              borderRadius: 6,
+              padding: '11px 16px',
+              display: 'grid',
+              gridTemplateColumns: selectedThread ? '1fr auto' : '180px 1fr auto',
+              gap: '0 14px',
+              alignItems: 'start',
+              cursor: 'pointer',
+            }}
+          >
+            {!selectedThread && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden', alignItems: 'flex-start' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.from}>
                   {formatFrom(t.from)}
@@ -2301,14 +2324,71 @@ function Inbox() {
                     : <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'monospace', letterSpacing: '.5px' }}>—</span>;
                 })()}
               </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{t.snippet}</div>
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', whiteSpace: 'nowrap', paddingTop: 2 }}>{formatDate(t.date)}</div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: selectedThread ? 11 : 12, fontWeight: 700, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+              {!selectedThread && <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{t.snippet}</div>}
+              {selectedThread && <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{formatFrom(t.from)}</div>}
             </div>
-          ))}
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', whiteSpace: 'nowrap', paddingTop: 2 }}>{formatDate(t.date)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const detailPanel = selectedThread && (
+    <div style={{ flex: 1, minWidth: 0, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 4, lineHeight: 1.3 }}>{selectedThread.subject}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{selectedThread.from}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', marginTop: 2 }}>{formatDate(selectedThread.date)}</div>
         </div>
+        <button
+          onClick={closeThread}
+          style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', fontFamily: 'monospace' }}
+          title="Close"
+        >×</button>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 18px' }}>
+        {threadContent?.loading && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '2px' }}>LOADING...</div>
+        )}
+        {threadContent?.error && (
+          <div style={{ fontSize: 12, color: 'var(--sla-red-text)', fontFamily: 'monospace' }}>{threadContent.error}</div>
+        )}
+        {threadContent && !threadContent.loading && !threadContent.error && (
+          threadContent.bodyHtml
+            ? <iframe
+                srcDoc={threadContent.bodyHtml}
+                style={{ width: '100%', minHeight: 400, border: 'none', background: '#fff', borderRadius: 4 }}
+                sandbox="allow-same-origin"
+                title="Email body"
+              />
+            : <pre style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontFamily: 'monospace', lineHeight: 1.6 }}>{threadContent.bodyText || '(no body)'}</pre>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
+          INBOX · radovan.truplans@gmail.com · {threads.length} threads
+        </div>
+        <button onClick={checkStatus} style={{ padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>↺ Refresh</button>
+      </div>
+      {threads.length === 0 ? (
+        <div style={{ ...centerWrap, color: 'var(--text-faint)', fontSize: 12, fontFamily: 'monospace' }}>No emails</div>
+      ) : selectedThread ? (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ width: 280, flexShrink: 0, maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}>{threadList}</div>
+          {detailPanel}
+        </div>
+      ) : (
+        threadList
       )}
     </div>
   );
