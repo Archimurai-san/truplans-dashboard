@@ -1165,7 +1165,7 @@ function NotificationPanel({prefs,history,onClose,onUpdatePrefs}){
 }
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
   const milestones=getProjectMilestones(project,paymentData);
   const {phone,email,docusign,address}=parseNotes(project.notes||'');
@@ -1286,6 +1286,28 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           )}
           <button onClick={()=>onPickPDF(project)} style={{...S.ghost,padding:'8px 16px',fontSize:11}}>{contractPath?'↺ Replace PDF':'+ Attach Contract PDF'}</button>
         </div>
+      </div>
+      <div style={{...S.card,marginTop:20}}>
+        <ST>Emails</ST>
+        {(() => {
+          const related = threads.filter(t => matchProject(t.from, t.subject)?.split(' · ')[0] === project.id);
+          if (related.length === 0) return (
+            <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No emails found</div>
+          );
+          const fFrom = raw => { const m = raw.match(/^"?([^"<]+)"?\s*</); return m ? m[1].trim() : raw.replace(/<.*>/,'').trim()||raw; };
+          const fDate = raw => { if(!raw) return ''; const d=new Date(raw); if(isNaN(d)) return raw; const now=new Date(); if(d.toDateString()===now.toDateString()) return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',...(d.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}); };
+          return (
+            <div style={{display:'flex',flexDirection:'column',gap:1}}>
+              {related.map(t => (
+                <div key={t.id} onClick={() => onOpenThread?.(t)} style={{background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:6,padding:'9px 14px',display:'grid',gridTemplateColumns:'160px 1fr auto',gap:'0 12px',alignItems:'center',cursor:onOpenThread?'pointer':'default'}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'var(--text-bright)',fontFamily:'monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={t.from}>{fFrom(t.from)}</div>
+                  <div style={{fontSize:11,color:'var(--text-body)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.subject}</div>
+                  <div style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fDate(t.date)}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -2218,9 +2240,8 @@ function matchProject(from, subject = '') {
   return null;
 }
 
-function Inbox({ projects = [], onOpenProject }) {
+function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads }) {
   const [connected, setConnected] = useState(null);
-  const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedThread, setSelectedThread] = useState(null);
@@ -2243,7 +2264,7 @@ function Inbox({ projects = [], onOpenProject }) {
     fetch('http://localhost:3001/api/gmail/list')
       .then(r => r.json())
       .then(data => {
-        if (data.error) { setError(data.error); } else { setThreads(data); }
+        if (data.error) { setError(data.error); } else { onSetThreads?.(data); }
         setLoading(false);
       })
       .catch(() => { setError('Failed to load emails'); setLoading(false); });
@@ -2558,6 +2579,7 @@ export default function App(){
     return cleanup;
   },[]);
   const [detailProjectId,setDetailProjectId]=useState(null);
+  const [gmailThreads,setGmailThreads]=useState([]);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));triggerSave();};
   const updateProjectType=(id,type)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));triggerSave();};
@@ -3224,6 +3246,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onPaymentUpdate={savePaymentData}
             onPickPDF={pickPDF}
             onViewPDF={(p,fp)=>setPdfPanel({project:p,filePath:fp})}
+            threads={gmailThreads}
+            onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");}}
           />
         ):(
           <>
@@ -3232,7 +3256,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject}/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads}/>}
           </>
         )}
       </main>
