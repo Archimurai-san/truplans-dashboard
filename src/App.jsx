@@ -2338,7 +2338,7 @@ function Inbox() {
   );
 
   const detailPanel = selectedThread && (
-    <div style={{ flex: 1, minWidth: 0, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, minWidth: 0, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden', maxHeight: 'calc(100vh - 160px)' }}>
       <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 4, lineHeight: 1.3 }}>{selectedThread.subject}</div>
@@ -2351,7 +2351,7 @@ function Inbox() {
           title="Close"
         >×</button>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 18px' }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {threadContent?.loading && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '2px' }}>LOADING...</div>
         )}
@@ -2362,11 +2362,11 @@ function Inbox() {
           threadContent.bodyHtml
             ? <iframe
                 srcDoc={threadContent.bodyHtml}
-                style={{ width: '100%', minHeight: 400, border: 'none', background: '#fff', borderRadius: 4 }}
+                style={{ flex: 1, width: '100%', height: 0, border: 'none', background: '#fff', borderRadius: 4 }}
                 sandbox="allow-same-origin"
                 title="Email body"
               />
-            : <pre style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontFamily: 'monospace', lineHeight: 1.6 }}>{threadContent.bodyText || '(no body)'}</pre>
+            : <pre style={{ flex: 1, overflow: 'auto', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontFamily: 'monospace', lineHeight: 1.6 }}>{threadContent.bodyText || '(no body)'}</pre>
         )}
       </div>
     </div>
