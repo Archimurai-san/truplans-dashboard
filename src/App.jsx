@@ -2246,6 +2246,10 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   const [error, setError] = useState(null);
   const [selectedThread, setSelectedThread] = useState(null);
   const [threadContent, setThreadContent] = useState(null);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyBody, setReplyBody] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyStatus, setReplyStatus] = useState(null);
 
   const checkStatus = () => {
     setLoading(true);
@@ -2273,6 +2277,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   const openThread = (t) => {
     setSelectedThread(t);
     setThreadContent({ loading: true, error: null });
+    setReplyOpen(false); setReplyBody(''); setReplyStatus(null);
     fetch(`http://localhost:3001/api/gmail/thread/${t.id}`)
       .then(r => r.json())
       .then(data => {
@@ -2282,7 +2287,25 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
       .catch(() => setThreadContent({ loading: false, error: 'Failed to load email' }));
   };
 
-  const closeThread = () => { setSelectedThread(null); setThreadContent(null); };
+  const closeThread = () => { setSelectedThread(null); setThreadContent(null); setReplyOpen(false); setReplyBody(''); setReplyStatus(null); };
+
+  const sendReply = () => {
+    if (!replyBody.trim() || !selectedThread) return;
+    setReplySending(true); setReplyStatus(null);
+    const to = selectedThread.from.match(/<([^>]+)>/)?.[1] || selectedThread.from;
+    fetch('http://localhost:3001/api/gmail/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadId: selectedThread.id, to, subject: selectedThread.subject, body: replyBody }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        setReplySending(false);
+        if (data.error) { setReplyStatus({ ok: false, msg: data.error }); }
+        else { setReplyStatus({ ok: true, msg: 'Sent!' }); setReplyBody(''); setTimeout(() => { setReplyOpen(false); setReplyStatus(null); }, 2000); }
+      })
+      .catch(() => { setReplySending(false); setReplyStatus({ ok: false, msg: 'Failed to send' }); });
+  };
 
   useEffect(() => { checkStatus(); }, []);
   useEffect(() => {
@@ -2396,11 +2419,17 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{selectedThread.from}</div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', marginTop: 2 }}>{formatDate(selectedThread.date)}</div>
         </div>
-        <button
-          onClick={closeThread}
-          style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', fontFamily: 'monospace' }}
-          title="Close"
-        >×</button>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => { setReplyOpen(o => !o); setReplyStatus(null); }}
+            style={{ background: replyOpen ? 'var(--accent)' : 'none', border: '1px solid var(--accent)', color: replyOpen ? '#fff' : 'var(--accent)', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontFamily: 'monospace', fontWeight: 700 }}
+          >↩ Reply</button>
+          <button
+            onClick={closeThread}
+            style={{ background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', fontFamily: 'monospace' }}
+            title="Close"
+          >×</button>
+        </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {threadContent?.loading && (
@@ -2420,6 +2449,37 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
             : <pre style={{ flex: 1, overflow: 'auto', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontFamily: 'monospace', lineHeight: 1.6 }}>{threadContent.bodyText || '(no body)'}</pre>
         )}
       </div>
+      {replyOpen && (
+        <div style={{ borderTop: '1px solid var(--border-primary)', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace' }}>
+            To: <span style={{ color: 'var(--text-muted)' }}>{selectedThread.from}</span>
+          </div>
+          <textarea
+            value={replyBody}
+            onChange={e => setReplyBody(e.target.value)}
+            placeholder="Write your reply..."
+            disabled={replySending}
+            style={{ background: 'var(--bg-input, var(--bg-page))', border: '1px solid var(--border-secondary)', borderRadius: 4, color: 'var(--text-body)', fontSize: 12, fontFamily: 'inherit', padding: '8px 10px', resize: 'vertical', minHeight: 90, outline: 'none' }}
+          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={sendReply}
+              disabled={replySending || !replyBody.trim()}
+              style={{ padding: '6px 18px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: replySending || !replyBody.trim() ? 'default' : 'pointer', fontSize: 11, fontFamily: 'monospace', fontWeight: 700, opacity: replySending || !replyBody.trim() ? 0.5 : 1 }}
+            >{replySending ? 'Sending...' : 'Send'}</button>
+            <button
+              onClick={() => { setReplyOpen(false); setReplyBody(''); setReplyStatus(null); }}
+              disabled={replySending}
+              style={{ padding: '6px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace' }}
+            >Cancel</button>
+            {replyStatus && (
+              <span style={{ fontSize: 11, fontFamily: 'monospace', color: replyStatus.ok ? 'var(--status-done-text)' : 'var(--sla-red-text)' }}>
+                {replyStatus.ok ? '✓ ' : '⚠ '}{replyStatus.msg}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 

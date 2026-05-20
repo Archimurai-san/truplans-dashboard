@@ -83,7 +83,7 @@ app.get('/api/gmail/auth', (req, res) => {
   if (!oauth2) return res.status(500).send('Gmail credentials not configured');
   const url = oauth2.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/gmail.readonly'],
+    scope: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
     prompt: 'consent',
   });
   res.redirect(url);
@@ -136,6 +136,40 @@ app.get('/api/gmail/list', async (req, res) => {
       return { id: t.id, from: h('From'), subject: h('Subject') || '(no subject)', snippet: thread.data.snippet || '', date: h('Date') };
     }));
     res.json(detailed);
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gmail/reply', async (req, res) => {
+  if (!gmailRefreshToken) return res.status(401).json({ error: 'Not connected' });
+  const oauth2 = makeOAuth2Client();
+  if (!oauth2) return res.status(500).json({ error: 'Gmail credentials not configured' });
+  oauth2.setCredentials({ refresh_token: gmailRefreshToken });
+  const { threadId, to, subject, body } = req.body;
+  if (!threadId || !to || !body) return res.status(400).json({ error: 'Missing threadId, to, or body' });
+  try {
+    const gmail = google.gmail({ version: 'v1', auth: oauth2 });
+    const thread = await gmail.users.threads.get({ userId: 'me', id: threadId, format: 'metadata', metadataHeaders: ['Message-ID', 'References'] });
+    const lastMsg = thread.data.messages?.[thread.data.messages.length - 1];
+    const lastHeaders = lastMsg?.payload?.headers || [];
+    const hdr = name => lastHeaders.find(h => h.name === name)?.value || '';
+    const messageId = hdr('Message-ID');
+    const references = [hdr('References'), messageId].filter(Boolean).join(' ');
+    const reSubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
+    const mime = [
+      `From: me`,
+      `To: ${to}`,
+      `Subject: ${reSubject}`,
+      `In-Reply-To: ${messageId}`,
+      `References: ${references}`,
+      `Content-Type: text/plain; charset=utf-8`,
+      ``,
+      body,
+    ].join('\r\n');
+    const raw = Buffer.from(mime).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    await gmail.users.messages.send({ userId: 'me', requestBody: { raw, threadId } });
+    res.json({ ok: true });
   } catch(err) {
     res.status(500).json({ error: err.message });
   }
