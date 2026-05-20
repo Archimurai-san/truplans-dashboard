@@ -2290,7 +2290,7 @@ function Inbox() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {threads.map(t => (
             <div key={t.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 6, padding: '11px 16px', display: 'grid', gridTemplateColumns: '180px 1fr auto', gap: '0 14px', alignItems: 'start' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden', alignItems: 'flex-start' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.from}>
                   {formatFrom(t.from)}
                 </div>
