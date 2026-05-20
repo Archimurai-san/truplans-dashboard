@@ -2240,7 +2240,7 @@ function matchProject(from, subject = '') {
   return null;
 }
 
-function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads }) {
+function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed }) {
   const [connected, setConnected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -2285,6 +2285,9 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads }) {
   const closeThread = () => { setSelectedThread(null); setThreadContent(null); };
 
   useEffect(() => { checkStatus(); }, []);
+  useEffect(() => {
+    if (initialThread) { openThread(initialThread); onInitialThreadConsumed?.(); }
+  }, [initialThread]);
 
   const formatFrom = raw => {
     const m = raw.match(/^"?([^"<]+)"?\s*</);
@@ -2580,6 +2583,7 @@ export default function App(){
   },[]);
   const [detailProjectId,setDetailProjectId]=useState(null);
   const [gmailThreads,setGmailThreads]=useState([]);
+  const [pendingThread,setPendingThread]=useState(null);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));triggerSave();};
   const updateProjectType=(id,type)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));triggerSave();};
@@ -3247,7 +3251,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onPickPDF={pickPDF}
             onViewPDF={(p,fp)=>setPdfPanel({project:p,filePath:fp})}
             threads={gmailThreads}
-            onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");}}
+            onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />
         ):(
           <>
@@ -3256,7 +3260,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads}/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)}/>}
           </>
         )}
       </main>
