@@ -2218,7 +2218,7 @@ function matchProject(from, subject = '') {
   return null;
 }
 
-function Inbox() {
+function Inbox({ projects = [], onOpenProject }) {
   const [connected, setConnected] = useState(null);
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2341,9 +2341,14 @@ function Inbox() {
                 </div>
                 {(() => {
                   const p = matchProject(t.from, t.subject);
-                  return p
-                    ? <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: '#2e7d32', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', letterSpacing: '.5px', whiteSpace: 'nowrap', display: 'inline-block' }}>{p}</span>
-                    : <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'monospace', letterSpacing: '.5px' }}>—</span>;
+                  if (!p) return <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'monospace', letterSpacing: '.5px' }}>—</span>;
+                  const projId = p.split(' · ')[0];
+                  return (
+                    <span
+                      onClick={onOpenProject ? e => { e.stopPropagation(); onOpenProject(projId); } : undefined}
+                      style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: '#2e7d32', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', letterSpacing: '.5px', whiteSpace: 'nowrap', display: 'inline-block', cursor: onOpenProject ? 'pointer' : 'default' }}
+                    >{p}</span>
+                  );
                 })()}
               </div>
             )}
@@ -3227,7 +3232,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject}/>}
           </>
         )}
       </main>
