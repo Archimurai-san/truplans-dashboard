@@ -342,6 +342,7 @@ const PROJECTS_INIT = [
   { id:"647",     name:"Deshpande",         client:"Deshpande",                      city:"San Diego", type:"CALOFT",       designer:"Radovan", status:"In Progress", phase:"", start:null,         end:null, pct:0, stamp:"", permit:"", contract:0,     invoiced:0, team:[], workflow:[], contracts:[], notes:"CALOFT garage/loft conversion. Scripps Ranch. RM-1-1 zone. APN 319-581-22. HOA submittal pending. 10874 Caminito Arcada, San Diego, CA 92131." },
   // ── PEECHA-GONZALEZ — PRESERVED EXACTLY ────────────────────────────────────
   { id:"648",     name:"Peecha-Gonzalez",   client:"Julie & Jorge Peecha-Gonzalez",  city:"San Diego", type:"TruAdditions", designer:"Radovan", status:"In Progress", phase:"", start:"2026-04-20", end:null, pct:0, stamp:"", permit:"", contract:19831, invoiced:0, team:[], workflow:[], contracts:[], notes:"Bonus room conversion + stair relocation. DocuSign 78625E8E. Signed 4/20/2026. Total $19,831. 8925 Rotherham Ave, San Diego, CA 92129." },
+  { id:"649",     name:"Benbicaco",         client:"Leni Benbicaco",                 city:"Irvine",     type:"TruAdditions", designer:"TBD",     status:"In Progress", phase:"", start:"2026-04-28", end:null, pct:0, stamp:"", permit:"", contract:69922, invoiced:0, team:[], workflow:[], contracts:[], notes:"DocuSign D4487145. Signed 4/28/26. 23 Santa Catalina Aisle, Irvine 92606. Phone: (310) 592-7089. Email: lenibenbicaco@gmail.com." },
 ].map(p=>({
   ...p,
   startDate:p.start,
@@ -875,6 +876,7 @@ const ANALYSE_PROMPT=`You are analysing a construction or architectural services
 
 STEP 1 — DETECT FORMAT:
 - If the document contains "CALOFT CORP" or "HIGH CEILING CONVERSION" → FORMAT 2 (CALOFT Construction Contract)
+- If the document contains "TRUADDITIONS CORP" → FORMAT 3 (TruAdditions Construction Contract)
 - Otherwise → FORMAT 1 (TruPlans Work Order)
 
 STEP 2 — EXTRACT based on detected format:
@@ -906,6 +908,26 @@ Set contractFormat: "CALOFT"
 - estimatedConstructionTime: e.g. "3-4 weeks"
 - paymentMilestones: all 8 milestones from PAYMENT SCHEDULE — code=1-8, description=milestone name, amount=dollar amount, trigger=payment trigger text:
   1=DEPOSIT, 2=HOUSE SCANNING, 3=DESIGN, 4=MATERIAL DEPOSITS, 5=PREP & DEMO, 6=ROUGH INSPECTION, 7=DRYWALL SCREW, 8=FINAL INSPECTION
+- includedItems: array of description strings for all line items where included indicator is Y
+- excludedItems: array of description strings for all line items where included indicator is N
+- signatureDate, signedByName from signature page
+
+=== FORMAT 3: TruAdditions Construction Contract ===
+Set contractFormat: "TRUADDITIONS"
+- docusignId: Docusign Envelope ID at top
+- contractorCompany: "TRUADDITIONS CORP"
+- contractorLicense: CSLB number if present
+- clientLastName, clientFirstNames: from HOMEOWNER / PROPERTY INFO section
+- fullAddress: street, city, zip
+- phone1, phone2 (if present)
+- email: client email field
+- contractDate: DATE field top right of page 1
+- signedDate: date from client signature page
+- grandTotal: CONTRACT TOTAL AMOUNT
+- approxStartDate: approximate start date if stated
+- approxCompletionDate: approximate completion date if stated
+- estimatedConstructionTime: e.g. "3-4 weeks"
+- paymentMilestones: all milestones from PAYMENT SCHEDULE — code=milestone number, description=milestone name, amount=dollar amount, trigger=payment trigger text
 - includedItems: array of description strings for all line items where included indicator is Y
 - excludedItems: array of description strings for all line items where included indicator is N
 - signatureDate, signedByName from signature page
@@ -1023,8 +1045,8 @@ function AnalyseModal({project,onClose,onSave}){
               style={{border:'2px dashed var(--border-secondary)',borderRadius:8,padding:'48px 32px',textAlign:'center',cursor:'pointer',background:'var(--bg-page)',marginBottom:16,transition:'border-color .2s'}}
             >
               <div style={{fontSize:40,marginBottom:10}}>📄</div>
-              <div style={{fontSize:14,color:'var(--text-body)',marginBottom:4}}>Drop TruPlans Work Order or CALOFT Construction Contract PDF here or click to browse</div>
-              <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace'}}>Auto-detects format — server must be running on port 3001</div>
+              <div style={{fontSize:14,color:'var(--text-body)',marginBottom:4}}>Drop TruPlans Work Order, CALOFT, or TruAdditions Construction Contract PDF here or click to browse</div>
+              <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace'}}>Auto-detects format (TruPlans / CALOFT / TruAdditions) — server must be running on port 3001</div>
             </div>
             {filename&&<div style={{fontSize:12,color:'var(--status-done-text)',marginBottom:14,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6}}>✓ {filename}</div>}
             <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
@@ -2153,7 +2175,7 @@ const PROJECT_CONTACTS = {
   'wendytan1213@gmail.com':     '638 · Tan',
   'attiaarbios@gmail.com':      '624 · Attia-Arbios',
   'ashishvdeshpande@gmail.com': '647 · Deshpande',
-  'lenibenbicaco@gmail.com':    'NEW · Benbicaco',
+  'lenibenbicaco@gmail.com':    '649 · Benbicaco',
 };
 
 const SUBJECT_KEYWORDS = [
@@ -2167,8 +2189,8 @@ const SUBJECT_KEYWORDS = [
   ['ATTIA',          '624 · Attia-Arbios'],
   ['ARBIOS',         '624 · Attia-Arbios'],
   ['CASTLE ROCK',    '624 · Attia-Arbios'],
-  ['BENBICACO',      'NEW · Benbicaco'],
-  ['SANTA CATALINA', 'NEW · Benbicaco'],
+  ['BENBICACO',      '649 · Benbicaco'],
+  ['SANTA CATALINA', '649 · Benbicaco'],
   ['PEECHA',         '648 · Peecha-Gonzalez'],
   ['GONZALEZ',       '648 · Peecha-Gonzalez'],
   ['ROTHERHAM',      '648 · Peecha-Gonzalez'],
