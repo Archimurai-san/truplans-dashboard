@@ -2148,6 +2148,54 @@ function EmailModal({project,extra,onClose,onLog}){
   );
 }
 
+const PROJECT_CONTACTS = {
+  'mjwjr11@gmail.com':          '637-W · Walker',
+  'wendytan1213@gmail.com':     '638 · Tan',
+  'attiaarbios@gmail.com':      '624 · Attia-Arbios',
+  'ashishvdeshpande@gmail.com': '647 · Deshpande',
+  'lenibenbicaco@gmail.com':    'NEW · Benbicaco',
+};
+
+const SUBJECT_KEYWORDS = [
+  ['DESHPANDE',      '647 · Deshpande'],
+  ['SHAH',           '626 · Shah'],
+  ['WALKER',         '637-W · Walker'],
+  ['ALSACE',         '637-W · Walker'],
+  ['TAN',            '638 · Tan'],
+  ['MARBELLA',       '638 · Tan'],
+  ['CANTILENA',      '638 · Tan'],
+  ['ATTIA',          '624 · Attia-Arbios'],
+  ['ARBIOS',         '624 · Attia-Arbios'],
+  ['CASTLE ROCK',    '624 · Attia-Arbios'],
+  ['BENBICACO',      'NEW · Benbicaco'],
+  ['SANTA CATALINA', 'NEW · Benbicaco'],
+  ['PEECHA',         '648 · Peecha-Gonzalez'],
+  ['GONZALEZ',       '648 · Peecha-Gonzalez'],
+  ['ROTHERHAM',      '648 · Peecha-Gonzalez'],
+  ['NELSON',         '644 · Nelson'],
+  ['CARLSBAD',       '644 · Nelson'],
+  ['IYER',           '621 · Iyer'],
+  ['CHAPPALLI',      '629 · Chappalli'],
+  ['THOMPSON',       '645 · Thompson'],
+  ['GREY',           '651 · Grey'],
+  ['LARSON',         '610 · Larson'],
+  ['SAMIA',          '637-S · Samia'],
+  ['BROWN',          '642 · Brown'],
+  ['DOYLE',          '634 · Doyle'],
+  ['MONTERREY',      '528 · Monterrey'],
+];
+
+function matchProject(from, subject = '') {
+  const m = from.match(/<([^>]+)>/);
+  const email = (m ? m[1] : from).toLowerCase().trim();
+  if (PROJECT_CONTACTS[email]) return PROJECT_CONTACTS[email];
+  const sub = (subject || '').toUpperCase();
+  for (const [kw, label] of SUBJECT_KEYWORDS) {
+    if (sub.includes(kw)) return label;
+  }
+  return null;
+}
+
 function Inbox() {
   const [connected, setConnected] = useState(null);
   const [threads, setThreads] = useState([]);
@@ -2242,8 +2290,16 @@ function Inbox() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {threads.map(t => (
             <div key={t.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 6, padding: '11px 16px', display: 'grid', gridTemplateColumns: '180px 1fr auto', gap: '0 14px', alignItems: 'start' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.from}>
-                {formatFrom(t.from)}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.from}>
+                  {formatFrom(t.from)}
+                </div>
+                {(() => {
+                  const p = matchProject(t.from, t.subject);
+                  return p
+                    ? <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', background: '#2e7d32', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', letterSpacing: '.5px', whiteSpace: 'nowrap', display: 'inline-block' }}>{p}</span>
+                    : <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'monospace', letterSpacing: '.5px' }}>—</span>;
+                })()}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
