@@ -1,6 +1,24 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const { spawn } = require('child_process')
+
+let serverProcess = null
+
+function startServer() {
+  const serverPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'server.js')
+    : path.join(__dirname, 'server.js')
+
+  serverProcess = spawn(process.execPath, [serverPath], {
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  serverProcess.stdout.on('data', d => console.log('[server]', d.toString().trim()))
+  serverProcess.stderr.on('data', d => console.error('[server]', d.toString().trim()))
+  serverProcess.on('exit', code => console.log('[server] exited with code', code))
+}
 
 let mainWindow
 
@@ -251,7 +269,14 @@ ipcMain.handle('analyse-contract', async (_event, payload) => {
 })
 
 app.disableHardwareAcceleration()
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  startServer()
+  setTimeout(createWindow, 1500)
+})
+
+app.on('before-quit', () => {
+  if (serverProcess) { serverProcess.kill(); serverProcess = null; }
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

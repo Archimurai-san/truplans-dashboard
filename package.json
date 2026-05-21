@@ -51,6 +51,10 @@
       {
         "from": "config.json",
         "to": "config.json"
+      },
+      {
+        "from": "server-pkg.json",
+        "to": "package.json"
       }
     ],
     "win": {
