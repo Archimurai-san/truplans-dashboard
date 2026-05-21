@@ -2733,10 +2733,12 @@ export default function App(){
   const [fTS,setFTS]=useState("All");
   const [fTQ,setFTQ]=useState("");
   const generatedTasks=useMemo(()=>generateTasksFromProjects(projects),[projects]);
+  const activeProjectIds=useMemo(()=>new Set(projects.map(p=>String(p.id))),[projects]);
   const filteredTasks=useMemo(()=>{
     try{
       const q=fTQ.trim().toLowerCase();
       return generatedTasks.filter(t=>{
+        if(!activeProjectIds.has(String(t.job))) return false;
         if(fTD!=="All"&&t.assigned!==fTD) return false;
         if(fTP!=="All"&&t.priority!==fTP) return false;
         if(fTS!=="All"&&t.status!==fTS) return false;
@@ -2744,7 +2746,7 @@ export default function App(){
         return true;
       });
     }catch{return generatedTasks;}
-  },[generatedTasks,fTD,fTP,fTS,fTQ]);
+  },[generatedTasks,activeProjectIds,fTD,fTP,fTS,fTQ]);
   const searchResults=useMemo(()=>searchProjects(searchQ,projects),[searchQ,projects]);
   const goToProject=id=>{setDetailProjectId(id);setTab('projects');setSearchQ('');setSearchOpen(false);};
   const handleSearchKeyDown=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setSearchQ('');setSearchOpen(false);}};
