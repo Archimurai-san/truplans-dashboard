@@ -89,10 +89,10 @@ loadConfig();
 
 let gmailCreds = null;
 try {
-  gmailCreds = JSON.parse(readFileSync(join(__dir, 'credentials.json.json'), 'utf8')).web;
+  gmailCreds = JSON.parse(readFileSync(join(__dir, 'credentials.json'), 'utf8')).web;
   console.log("✓  Gmail credentials loaded");
 } catch(e) {
-  console.log("⚠  No credentials.json.json found — Gmail features disabled");
+  console.log("⚠  No credentials.json found — Gmail features disabled");
 }
 
 function makeOAuth2Client() {
