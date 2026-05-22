@@ -989,15 +989,20 @@ function AnalyseModal({project,onClose,onSave}){
     try{
       const b64=filePath?._blob ? filePath.data : await window.electronAPI?.readFileBase64(filePath);
       if(!b64)throw new Error('Could not read file — check the path is accessible');
-      const result=await window.electronAPI.analyseContract({
-        model:'claude-sonnet-4-20250514',max_tokens:6000,
-        messages:[{role:'user',content:[
-          {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
-          {type:'text',text:ANALYSE_PROMPT}
-        ]}]
-      });
-      if(!result.ok)throw new Error(result.error);
-      const data=result.data;
+      const payload={model:'claude-sonnet-4-20250514',max_tokens:6000,messages:[{role:'user',content:[
+        {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
+        {type:'text',text:ANALYSE_PROMPT}
+      ]}]};
+      let data;
+      if(window.electronAPI?.analyseContract){
+        const result=await window.electronAPI.analyseContract(payload);
+        if(!result.ok)throw new Error(result.error);
+        data=result.data;
+      } else {
+        const res=await fetch(`${API_BASE}/api/claude`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(!res.ok)throw new Error(`Server error ${res.status}`);
+        data=await res.json();
+      }
       if(data.error)throw new Error(JSON.stringify(data.error));
       const raw=data.content?.[0]?.text||'{}';
       const m=raw.match(/\{[\s\S]*\}/);
