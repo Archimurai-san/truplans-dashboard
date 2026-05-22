@@ -1191,8 +1191,11 @@ function NotificationPanel({prefs,history,onClose,onUpdatePrefs}){
 }
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
+  const [renaming,setRenaming]=useState(false);
+  const [renameVal,setRenameVal]=useState(project.name);
+  const saveName=()=>{if(renameVal.trim()&&renameVal.trim()!==project.name)onUpdateName?.(project.id,renameVal.trim());setRenaming(false);};
   const milestones=getProjectMilestones(project,paymentData);
   const {phone,email,docusign,address}=parseNotes(project.notes||'');
   const getStepStatus=id=>{
@@ -1222,7 +1225,24 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
         <button onClick={onBack} style={{...S.ghost,padding:'6px 14px',fontSize:11,flexShrink:0}}>← Projects</button>
         <div style={{flex:1,minWidth:200}}>
           <div style={{fontSize:10,color:'var(--accent)',fontFamily:'monospace',letterSpacing:'2px'}}>{project.id}{project.type&&` · ${project.type}`}</div>
-          <div style={{fontSize:22,fontWeight:700,color:'var(--text-bright)',lineHeight:1.2}}>{project.name}</div>
+          {renaming?(
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2,marginBottom:2}}>
+              <input
+                autoFocus
+                value={renameVal}
+                onChange={e=>setRenameVal(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter')saveName();if(e.key==='Escape'){setRenaming(false);setRenameVal(project.name);}}}
+                style={{...S.input,fontSize:18,fontWeight:700,padding:'3px 8px',width:280}}
+              />
+              <button onClick={saveName} style={{...S.btn,padding:'4px 14px',fontSize:11}}>Save</button>
+              <button onClick={()=>{setRenaming(false);setRenameVal(project.name);}} style={{...S.ghost,padding:'4px 10px',fontSize:11}}>Cancel</button>
+            </div>
+          ):(
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <div style={{fontSize:22,fontWeight:700,color:'var(--text-bright)',lineHeight:1.2}}>{project.name}</div>
+              <button onClick={()=>{setRenameVal(project.name);setRenaming(true);}} style={{background:'none',border:'none',color:'var(--text-faint)',cursor:'pointer',fontSize:11,fontFamily:'monospace',padding:'2px 6px',borderRadius:3,marginTop:2}} title="Rename project">✎</button>
+            </div>
+          )}
           <div style={{fontSize:12,color:'var(--text-muted)'}}>{project.client}{project.city&&` · ${project.city}`}</div>
         </div>
         <SLABadge project={project}/>
@@ -2708,6 +2728,7 @@ export default function App(){
   const [pendingThread,setPendingThread]=useState(null);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));triggerSave();};
+  const updateProjectName=(id,name)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
   const updateProjectType=(id,type)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));triggerSave();};
   const [pdfPanel,setPdfPanel]=useState(null);
   const saveContractPath=(projectId,filePath)=>{const u={...contractPaths,[projectId]:filePath};setContractPaths(u);localStorage.setItem("contract-paths",JSON.stringify(u));};
@@ -3381,6 +3402,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onPaymentUpdate={savePaymentData}
             onPickPDF={pickPDF}
             onViewPDF={(p,fp)=>setPdfPanel({project:p,filePath:fp})}
+            onUpdateName={updateProjectName}
             threads={gmailThreads}
             onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />
