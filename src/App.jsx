@@ -2363,7 +2363,7 @@ function matchProject(from, subject = '') {
   return null;
 }
 
-function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed }) {
+function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '' }) {
   const [connected, setConnected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -2484,9 +2484,18 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     </div>
   );
 
+  const sfq = searchFilter.trim().toLowerCase();
+  const displayedThreads = sfq
+    ? threads.filter(t =>
+        formatFrom(t.from).toLowerCase().includes(sfq) ||
+        t.subject.toLowerCase().includes(sfq) ||
+        (matchProject(t.from, t.subject)||'').toLowerCase().includes(sfq)
+      )
+    : threads;
+
   const threadList = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {threads.map(t => {
+      {displayedThreads.map(t => {
         const isSelected = selectedThread?.id === t.id;
         return (
           <div
@@ -2537,6 +2546,13 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   const detailPanel = selectedThread && (
     <div style={{ flex: 1, minWidth: 0, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden', maxHeight: 'calc(100vh - 160px)' }}>
       <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--border-primary)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        {sfq && (
+          <button
+            onClick={closeThread}
+            style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontFamily: 'monospace', alignSelf: 'center' }}
+            title="Back to results"
+          >← Back</button>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 4, lineHeight: 1.3 }}>{selectedThread.subject}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{selectedThread.from}</div>
@@ -2610,7 +2626,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
-          INBOX · radovan.truplans@gmail.com · {threads.length} threads
+          INBOX · radovan.truplans@gmail.com · {sfq ? `${displayedThreads.length} of ${threads.length}` : `${threads.length} threads`}
         </div>
         <button onClick={checkStatus} style={{ padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>↺ Refresh</button>
       </div>
@@ -3392,14 +3408,14 @@ Set included:true/false per contract. Extract real payment milestones with amoun
         <div ref={searchRef} style={{position:'relative',marginLeft:16,display:'flex',alignItems:'center'}}>
           <input
             value={searchQ}
-            onChange={e=>{setSearchQ(e.target.value);setSearchOpen(true);}}
+            onChange={e=>{setSearchQ(e.target.value);if(tab!=='inbox')setSearchOpen(true);}}
             onFocus={()=>searchQ&&setSearchOpen(true)}
             onKeyDown={handleSearchKeyDown}
             placeholder="🔍 Search projects..."
             style={{background:'var(--bg-input)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'5px 32px 5px 10px',borderRadius:4,fontSize:11,fontFamily:'monospace',width:210,outline:'none'}}
           />
           {searchQ&&<button onClick={()=>{setSearchQ('');setSearchOpen(false);}} style={{position:'absolute',right:6,background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',fontSize:14,lineHeight:1,padding:'0 2px'}} title="Clear">✕</button>}
-          {searchOpen&&searchResults.length>0&&(
+          {searchOpen&&searchResults.length>0&&tab!=='inbox'&&(
             <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,width:380,background:'var(--bg-card)',border:'1px solid var(--border-primary)',borderRadius:6,zIndex:300,boxShadow:'0 8px 32px rgba(0,0,0,0.5)',maxHeight:420,overflowY:'auto'}}>
               {searchResults.map((r,i)=>(
                 <div key={i} onClick={()=>goToProject(r.projectId)}
@@ -3479,7 +3495,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)}/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ}/>}
           </>
         )}
       </main>
