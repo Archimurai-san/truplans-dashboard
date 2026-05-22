@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
+const API_BASE = 'http://localhost:3001';
+
 function fixDateYear(val) {
   if (!val || !val.includes('-')) return val;
   const [y, m, d] = val.split('-');
@@ -622,7 +624,8 @@ const S={
 function PDFPanel({panel, onClose}) {
   if (!panel) return null;
   const {project, filePath} = panel;
-  const fileUrl = filePath ? (window.electronAPI?.getFilePath ? window.electronAPI.getFilePath(filePath) : ('file:///' + filePath.replace(/\\/g, '/'))) : '';
+  const isFullPath = filePath && (filePath.includes('/') || filePath.includes('\\') || filePath.includes(':'));
+  const fileUrl = (filePath && isFullPath) ? (window.electronAPI?.getFilePath ? window.electronAPI.getFilePath(filePath) : ('file:///' + filePath.replace(/\\/g, '/'))) : '';
   return (
     <div style={{position:'fixed',top:0,right:0,width:'50%',height:'100vh',background:'var(--bg-card)',borderLeft:'2px solid var(--border-primary)',zIndex:180,display:'flex',flexDirection:'column',boxShadow:'-8px 0 32px rgba(0,0,0,0.5)'}}>
       <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border-primary)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,gap:12}}>
@@ -2365,6 +2368,7 @@ function matchProject(from, subject = '') {
 
 function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '' }) {
   const [connected, setConnected] = useState(null);
+  const [gmailEmail, setGmailEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedThread, setSelectedThread] = useState(null);
@@ -2377,10 +2381,11 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   const checkStatus = () => {
     setLoading(true);
     setError(null);
-    fetch('http://localhost:3001/api/gmail/status')
+    fetch(`${API_BASE}/api/gmail/status`)
       .then(r => r.json())
       .then(data => {
         setConnected(data.connected);
+        if (data.gmailEmail) setGmailEmail(data.gmailEmail);
         if (data.connected) return fetchThreads();
         setLoading(false);
       })
@@ -2388,7 +2393,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   };
 
   const fetchThreads = () => {
-    fetch('http://localhost:3001/api/gmail/list')
+    fetch(`${API_BASE}/api/gmail/list`)
       .then(r => r.json())
       .then(data => {
         if (data.error) { setError(data.error); } else { onSetThreads?.(data); }
@@ -2401,7 +2406,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     setSelectedThread(t);
     setThreadContent({ loading: true, error: null });
     setReplyOpen(false); setReplyBody(''); setReplyStatus(null);
-    fetch(`http://localhost:3001/api/gmail/thread/${t.id}`)
+    fetch(`${API_BASE}/api/gmail/thread/${t.id}`)
       .then(r => r.json())
       .then(data => {
         if (data.error) setThreadContent({ loading: false, error: data.error });
@@ -2416,7 +2421,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     if (!replyBody.trim() || !selectedThread) return;
     setReplySending(true); setReplyStatus(null);
     const to = selectedThread.from.match(/<([^>]+)>/)?.[1] || selectedThread.from;
-    fetch('http://localhost:3001/api/gmail/reply', {
+    fetch(`${API_BASE}/api/gmail/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ threadId: selectedThread.id, to, subject: selectedThread.subject, body: replyBody }),
@@ -2473,7 +2478,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
         Link your Google account to view your inbox here. A browser window will open to complete sign-in.
       </div>
       <button
-        onClick={() => window.open('http://localhost:3001/api/gmail/auth', '_blank')}
+        onClick={() => window.open(`${API_BASE}/api/gmail/auth`, '_blank')}
         style={{ padding: '10px 28px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '1px' }}
       >
         CONNECT GMAIL
@@ -2626,7 +2631,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
-          INBOX · radovan.truplans@gmail.com · {sfq ? `${displayedThreads.length} of ${threads.length}` : `${threads.length} threads`}
+          INBOX{gmailEmail ? ` · ${gmailEmail}` : ''} · {sfq ? `${displayedThreads.length} of ${threads.length}` : `${threads.length} threads`}
         </div>
         <button onClick={checkStatus} style={{ padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>↺ Refresh</button>
       </div>
@@ -2729,7 +2734,7 @@ export default function App(){
   const notifPrefsRef=useRef(notifPrefs);notifPrefsRef.current=notifPrefs;
   const _projInit=useRef(false);
   useEffect(()=>{
-    fetch('http://localhost:3001/api/supabase/projects')
+    fetch(`${API_BASE}/api/supabase/projects`)
       .then(r=>r.json())
       .then(data=>{
         if(!data.error&&Array.isArray(data)&&data.length>0){
@@ -2742,17 +2747,17 @@ export default function App(){
           });
         }
       })
-      .catch(()=>{});
+      .catch(err=>console.error('[supabase] Failed to load projects from cloud:', err.message));
   },[]);
   useEffect(()=>{
     if(!_projInit.current){_projInit.current=true;return;}
     try{localStorage.setItem("project-state",JSON.stringify(projects));}catch{}
     triggerSave();
-    fetch('http://localhost:3001/api/supabase/sync',{
+    fetch(`${API_BASE}/api/supabase/sync`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({projects}),
-    }).catch(()=>{});
+    }).catch(err=>console.error('[supabase] Failed to sync projects to cloud:', err.message));
   },[projects]);
   useEffect(()=>{
     const h=e=>{if(searchRef.current&&!searchRef.current.contains(e.target)){setSearchOpen(false);}};

@@ -8,11 +8,12 @@ import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const __dir = dirname(fileURLToPath(import.meta.url));
 
 let API_KEY = "";
 let gmailRefreshToken = null;
+let gmailEmail = "";
 let supabase = null;
 
 function loadConfig() {
@@ -20,6 +21,7 @@ function loadConfig() {
     const config = JSON.parse(readFileSync(join(__dir, 'config.json'), 'utf8'));
     API_KEY = config.anthropicKey || "";
     gmailRefreshToken = config.gmailRefreshToken || null;
+    gmailEmail = config.gmailEmail || "";
     if (config.supabaseUrl && config.supabaseAnonKey) {
       supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
       console.log("✓  Supabase client initialised — URL:", config.supabaseUrl);
@@ -123,6 +125,11 @@ app.post('/api/claude', async (req, res) => {
       body: JSON.stringify(req.body),
       signal: controller.signal
     });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[claude] API error ${response.status}:`, errText.slice(0, 200));
+      return res.status(response.status).json({ error: `Anthropic API returned ${response.status}`, detail: errText.slice(0, 200) });
+    }
     const data = await response.json();
     res.json(data);
   } catch(err) {
@@ -228,7 +235,7 @@ app.get('/api/gmail/callback', async (req, res) => {
 });
 
 app.get('/api/gmail/status', (req, res) => {
-  res.json({ connected: !!gmailRefreshToken });
+  res.json({ connected: !!gmailRefreshToken, gmailEmail });
 });
 
 app.get('/api/gmail/list', async (req, res) => {

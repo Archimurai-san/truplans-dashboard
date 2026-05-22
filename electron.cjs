@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog, Notification, session } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { spawn } = require('child_process')
@@ -63,8 +63,10 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      // webSecurity must remain false: loadFile() uses file:// protocol,
+      // and Chromium blocks file:// → http://localhost cross-origin fetches
+      // even when the server sends correct CORS headers.
       webSecurity: false,
-      allowRunningInsecureContent: true,
     },
     autoHideMenuBar: true,
   })
@@ -299,6 +301,19 @@ ipcMain.handle('analyse-contract', async (_event, payload) => {
 
 app.disableHardwareAcceleration()
 app.whenReady().then(() => {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval';" +
+          "connect-src 'self' http://localhost:3001 https://*.supabase.co https://api.anthropic.com;" +
+          "img-src 'self' data: blob:;" +
+          "frame-src 'self' blob: data:;"
+        ]
+      }
+    })
+  })
   startServer()
   setTimeout(createWindow, 1500)
   if (app.isPackaged) {
