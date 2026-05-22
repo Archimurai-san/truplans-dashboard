@@ -1201,7 +1201,7 @@ function NotificationPanel({prefs,history,onClose,onUpdatePrefs}){
 }
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
   const [renaming,setRenaming]=useState(false);
   const [renameVal,setRenameVal]=useState(project.name);
@@ -1345,11 +1345,11 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <div style={{marginTop:14}}>
             <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}}>Internal Steps 5.1–5.20</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
-              {internalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:4,background:SBG[st]}}><span style={{fontSize:8,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:26}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{step.label}</span></div>;})}
+              {internalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:4,background:SBG[st],cursor:'pointer',userSelect:'none'}}><span style={{fontSize:8,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:26}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{step.label}</span></div>;})}
             </div>
             <div style={{fontSize:9,color:'var(--sla-red-text)',fontFamily:'monospace',letterSpacing:'1px',textTransform:'uppercase',marginTop:12,marginBottom:8}}>External 5.21–5.23 — SLA Paused</div>
             <div style={{display:'flex',gap:6}}>
-              {externalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:4,background:SBG[st],border:`1px solid ${SCOL[st]}44`}}><span style={{fontSize:9,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:28}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],flex:1}}>{step.label}</span></div>;})}
+              {externalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:4,background:SBG[st],border:`1px solid ${SCOL[st]}44`,cursor:'pointer',userSelect:'none'}}><span style={{fontSize:9,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:28}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],flex:1}}>{step.label}</span></div>;})}
             </div>
           </div>
         </div>
@@ -2807,6 +2807,15 @@ export default function App(){
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));triggerSave();};
   const updateProjectName=(id,name)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
+  const togglePhaseFromDetail=(projectId,stepId)=>{
+    const today=new Date().toISOString().slice(0,10);
+    setProjects(prev=>prev.map(p=>{
+      if(String(p.id)!==String(projectId)) return p;
+      const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:ph.status==='done'?'not_started':'done',dateCompleted:ph.status==='done'?null:today}:ph);
+      const workflow=(Array.isArray(p.workflow)?p.workflow:[]).map(m=>m&&m.milestoneId===stepId?{...m,status:m.status==='Completed'?'Not Started':'Completed'}:m);
+      return{...p,phases,workflow};
+    }));
+  };
   const updateProjectType=(id,type)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));triggerSave();};
   const [pdfPanel,setPdfPanel]=useState(null);
   const saveContractPath=(projectId,filePath)=>{const u={...contractPaths,[projectId]:filePath};setContractPaths(u);localStorage.setItem("contract-paths",JSON.stringify(u));};
@@ -2823,10 +2832,12 @@ export default function App(){
   const onPdfInputChange=e=>{const f=e.target.files?.[0];if(f&&pendingPdfProject){saveContractPath(pendingPdfProject.id,f.name);setPendingPdfProject(null);e.target.value='';}};
   const toggleTaskComplete=(projectId,stepId,done)=>{
     if(!projectId||!stepId) return;
+    const today=new Date().toISOString().slice(0,10);
     setProjects(prev=>prev.map(p=>{
       if(String(p.id)!==String(projectId)) return p;
-      const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:done?'done':'not_started',dateCompleted:done?new Date().toISOString().slice(0,10):null}:ph);
-      return{...p,phases};
+      const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:done?'done':'not_started',dateCompleted:done?today:null}:ph);
+      const workflow=(Array.isArray(p.workflow)?p.workflow:[]).map(m=>m&&m.milestoneId===stepId?{...m,status:done?'Completed':'Not Started'}:m);
+      return{...p,phases,workflow};
     }));
   };
 
@@ -3485,6 +3496,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onWorkflow={()=>setWorkflowP(detailProject)}
             onAssign={()=>setAssignP(detailProject)}
             onContracts={()=>setCtrP(detailProject)}
+            onTogglePhase={togglePhaseFromDetail}
             threads={gmailThreads}
             onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />
