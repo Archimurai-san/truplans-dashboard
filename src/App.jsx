@@ -1191,7 +1191,7 @@ function NotificationPanel({prefs,history,onClose,onUpdatePrefs}){
 }
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
   const [renaming,setRenaming]=useState(false);
   const [renameVal,setRenameVal]=useState(project.name);
@@ -1246,9 +1246,12 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <div style={{fontSize:12,color:'var(--text-muted)'}}>{project.client}{project.city&&` · ${project.city}`}</div>
         </div>
         <SLABadge project={project}/>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-          <Av name={project.designer} size={32} colorMap={teamMembers}/>
-          <span style={{fontSize:12,color:'var(--text-body)'}}>{project.designer}</span>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          <button onClick={onDelete} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #e74c3c',color:'#e74c3c',background:'none'}}>Delete</button>
+          <button onClick={onWorkflow} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Workflow</button>
+          <button onClick={onAssign} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Assign Team</button>
+          <button onClick={onContracts} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Contracts</button>
+          <button onClick={onBack} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-body)',background:'none',fontWeight:700}}>✕ Close</button>
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'38% 1fr',gap:20,marginBottom:20,alignItems:'start'}}>
@@ -2754,7 +2757,7 @@ export default function App(){
 
   const MemberAv=({name,size})=><Av name={name} size={size} colorMap={teamMembers}/>;
   const [confirmDelete,setConfirmDelete]=useState(null);
-  const deleteProject=(id)=>{setProjects(prev=>prev.filter(p=>p.id!==id));setConfirmDelete(null);setSelP(null);};
+  const deleteProject=(id)=>{setProjects(prev=>prev.filter(p=>p.id!==id));setConfirmDelete(null);setSelP(null);setDetailProjectId(null);setTab('projects');};
   const [currentUser,setCurrentUser]=useState(()=>{try{return localStorage.getItem("current-user")||null;}catch{return null;}});
   const [showUserSelect,setShowUserSelect]=useState(()=>{
     try{
@@ -3403,6 +3406,10 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onPickPDF={pickPDF}
             onViewPDF={(p,fp)=>setPdfPanel({project:p,filePath:fp})}
             onUpdateName={updateProjectName}
+            onDelete={()=>setConfirmDelete(detailProject)}
+            onWorkflow={()=>setWorkflowP(detailProject)}
+            onAssign={()=>setAssignP(detailProject)}
+            onContracts={()=>setCtrP(detailProject)}
             threads={gmailThreads}
             onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />
