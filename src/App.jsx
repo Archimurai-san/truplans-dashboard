@@ -234,6 +234,16 @@ function makeProjectPhases(p){
 function addDays(dateStr,n){if(!dateStr)return null;const d=new Date(dateStr);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 const SLA_DAYS=56;
 const EXTERNAL_IDS=new Set(['5.21','5.22','5.23']);
+const WEEK_BUCKETS=[
+  {week:1,label:'Kickoff & Site Capture',   steps:['5.1','5.2','5.3']},
+  {week:2,label:'Existing Conditions',       steps:['5.4','5.5','5.6']},
+  {week:3,label:'Schematic Design',          steps:['5.7','5.8','5.9']},
+  {week:4,label:'Design Development',        steps:['5.10','5.11','5.12','5.13']},
+  {week:5,label:'Engineering & T24',         steps:['5.14','5.15','5.16']},
+  {week:6,label:'Construction Documents',    steps:['5.17','5.18','5.19']},
+  {week:7,label:'HOA / Pre-Submission',      steps:['5.20','5.21']},
+  {week:8,label:'City Submission',           steps:['5.22','5.23']},
+];
 function getSLAStatus(project){
   const startDate=project.start;
   if(!startDate) return {zone:'none'};
@@ -1218,6 +1228,11 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
   const contractFilename=contractPath?contractPath.split(/[/\\]/).pop():null;
   const internalSteps=PHASES_WILLIS_WORKFLOW.filter(p=>!EXTERNAL_IDS.has(p.id));
   const externalSteps=PHASES_WILLIS_WORKFLOW.filter(p=>EXTERNAL_IDS.has(p.id));
+  const slaStatus=getSLAStatus(project);
+  const currentWeek=Math.min(Math.max(slaStatus.weekNum||1,1),8);
+  const currentBucket=WEEK_BUCKETS.find(b=>b.week===currentWeek);
+  const dueThisWeek=(currentBucket?.steps||[]).map(id=>({...PHASES_WILLIS_WORKFLOW.find(p=>p.id===id),status:getStepStatus(id)}));
+  const behindSchedule=WEEK_BUCKETS.filter(b=>b.week<currentWeek).flatMap(b=>b.steps).filter(id=>getStepStatus(id)!=='Completed').map(id=>({...PHASES_WILLIS_WORKFLOW.find(p=>p.id===id),status:getStepStatus(id)}));
   const InfoRow=({label,value,href,onClick})=>value?(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:10}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:2,flexShrink:0}}>{label}</span>{href?<a href={href} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',wordBreak:'break-all'}}>{value}</a>:onClick?<span onClick={onClick} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',cursor:'pointer',wordBreak:'break-all'}}>{value}</span>:<span style={{fontSize:12,color:'var(--text-body)',wordBreak:'break-all'}}>{value}</span>}</div>):null;
   return(
     <div style={{animation:'slideInRight 0.2s ease-out'}}>
@@ -1252,6 +1267,50 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <button onClick={onAssign} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Assign Team</button>
           <button onClick={onContracts} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Contracts</button>
           <button onClick={onBack} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-body)',background:'none',fontWeight:700}}>✕ Close</button>
+        </div>
+      </div>
+      <div style={{...S.card,marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'flex-start',gap:24}}>
+          <div style={{flexShrink:0,textAlign:'center',minWidth:64}}>
+            <div style={{fontSize:36,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',lineHeight:1}}>W{currentWeek}</div>
+            <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px',marginTop:2}}>of 8</div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'2px',marginBottom:6}}>
+              This Week · {currentBucket?.label||'—'}
+            </div>
+            {!project.start?(
+              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>Set a start date to activate the milestone tracker</div>
+            ):slaStatus.isExternal?(
+              <div style={{fontSize:11,color:'var(--status-hold-text)',fontFamily:'monospace'}}>⏸ SLA paused — external review in progress</div>
+            ):(
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {dueThisWeek.map(step=>{
+                  const done=step.status==='Completed';
+                  const ip=step.status==='In Progress';
+                  return(
+                    <div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:4,background:done?'var(--status-done-bg)':ip?'var(--status-ip-bg)':'var(--bg-subtle)',border:`1px solid ${done?'var(--status-done-text)':ip?'#3498db33':'var(--border-primary)'}`}}>
+                      <span style={{fontSize:10,fontWeight:700,fontFamily:'monospace',color:done?'var(--status-done-text)':ip?'#3498db':'var(--text-faint)'}}>{done?'✓':ip?'▶':'○'}</span>
+                      <span style={{fontSize:9,color:done?'var(--status-done-text)':ip?'#3498db':'var(--text-muted)'}}><span style={{fontFamily:'monospace',fontWeight:700}}>{step.id}</span> {step.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {behindSchedule.length>0&&(
+            <div style={{flexShrink:0,minWidth:220,maxWidth:280}}>
+              <div style={{fontSize:9,fontWeight:700,color:'var(--sla-red-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:6}}>⚠ Behind Schedule ({behindSchedule.length})</div>
+              <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                {behindSchedule.map(step=>(
+                  <div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 8px',borderRadius:3,background:'var(--sla-red-bg)'}}>
+                    <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace',color:'var(--sla-red-text)'}}>✗</span>
+                    <span style={{fontSize:9,color:'var(--sla-red-text)'}}><span style={{fontFamily:'monospace',fontWeight:700}}>{step.id}</span> {step.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'38% 1fr',gap:20,marginBottom:20,alignItems:'start'}}>
