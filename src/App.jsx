@@ -2631,9 +2631,30 @@ export default function App(){
   const notifPrefsRef=useRef(notifPrefs);notifPrefsRef.current=notifPrefs;
   const _projInit=useRef(false);
   useEffect(()=>{
+    fetch('http://localhost:3001/api/supabase/projects')
+      .then(r=>r.json())
+      .then(data=>{
+        if(!data.error&&Array.isArray(data)&&data.length>0){
+          const remoteIds=new Set(data.map(p=>p.id));
+          const newFromInit=PROJECTS_INIT.filter(p=>!remoteIds.has(p.id));
+          setProjects(prev=>{
+            const merged=[...data,...newFromInit];
+            _projInit.current=false;
+            return merged;
+          });
+        }
+      })
+      .catch(()=>{});
+  },[]);
+  useEffect(()=>{
     if(!_projInit.current){_projInit.current=true;return;}
     try{localStorage.setItem("project-state",JSON.stringify(projects));}catch{}
     triggerSave();
+    fetch('http://localhost:3001/api/supabase/sync',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({projects}),
+    }).catch(()=>{});
   },[projects]);
   useEffect(()=>{
     const h=e=>{if(searchRef.current&&!searchRef.current.contains(e.target)){setSearchOpen(false);}};

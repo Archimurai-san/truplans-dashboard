@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { google } from 'googleapis';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 const PORT = 3001;
@@ -12,15 +13,70 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 
 let API_KEY = "";
 let gmailRefreshToken = null;
+let supabase = null;
 
 function loadConfig() {
   try {
     const config = JSON.parse(readFileSync(join(__dir, 'config.json'), 'utf8'));
     API_KEY = config.anthropicKey || "";
     gmailRefreshToken = config.gmailRefreshToken || null;
+    if (config.supabaseUrl && config.supabaseAnonKey) {
+      supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
+      console.log("✓  Supabase client initialised — URL:", config.supabaseUrl);
+    } else {
+      console.log("ℹ  Supabase not configured — supabaseUrl:", config.supabaseUrl, "supabaseAnonKey:", config.supabaseAnonKey ? "present" : "MISSING");
+    }
   } catch(e) {
     console.log("No config.json found.");
   }
+}
+
+function toDb(p) {
+  return {
+    id:            String(p.id),
+    name:          p.name          || null,
+    client:        p.client        || null,
+    designer:      p.designer      || null,
+    type:          p.type          || null,
+    status:        p.status        || 'In Progress',
+    phase:         p.phase         || null,
+    city:          p.city          || null,
+    contract:      Number(p.contract)  || 0,
+    invoiced:      Number(p.invoiced)  || 0,
+    pct:           Number(p.pct)       || 0,
+    stamp:         p.stamp         || null,
+    permit:        p.permit        || null,
+    start_date:    p.start         || p.startDate || null,
+    end_date:      p.end           || p.targetDate || null,
+    notes:         p.notes         || null,
+    scope_of_work: p.scopeOfWork   || [],
+    workflow:      p.workflow       || [],
+  };
+}
+
+function fromDb(row) {
+  return {
+    id:           row.id,
+    name:         row.name         || '',
+    client:       row.client       || '',
+    designer:     row.designer     || '',
+    type:         row.type         || '',
+    status:       row.status       || 'In Progress',
+    phase:        row.phase        || '',
+    city:         row.city         || '',
+    contract:     Number(row.contract)  || 0,
+    invoiced:     Number(row.invoiced)  || 0,
+    pct:          Number(row.pct)       || 0,
+    stamp:        row.stamp        || '',
+    permit:       row.permit       || '',
+    start:        row.start_date   || null,
+    end:          row.end_date     || null,
+    notes:        row.notes        || '',
+    scopeOfWork:  row.scope_of_work || [],
+    workflow:     row.workflow      || [],
+    team:         [],
+    contracts:    [],
+  };
 }
 
 function saveConfig(updates) {
@@ -73,6 +129,65 @@ app.post('/api/claude', async (req, res) => {
     res.status(500).json({ error: err.message });
   } finally {
     clearTimeout(timer);
+  }
+});
+
+// --- Supabase ---
+
+app.get('/api/supabase/projects', async (req, res) => {
+  console.log('[supabase] GET /api/supabase/projects — client ready:', !!supabase);
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  try {
+    const { data, error } = await supabase.from('projects').select('*');
+    if (error) {
+      console.error('[supabase] SELECT error:', error.message, error.details);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[supabase] SELECT ok — rows returned:', data.length);
+    res.json(data.map(fromDb));
+  } catch(err) {
+    console.error('[supabase] GET exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/supabase/projects', async (req, res) => {
+  console.log('[supabase] POST /api/supabase/projects — project id:', req.body?.id);
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  try {
+    const row = toDb(req.body);
+    console.log('[supabase] upserting single row:', JSON.stringify(row).slice(0, 120));
+    const { error } = await supabase.from('projects').upsert(row, { onConflict: 'id' });
+    if (error) {
+      console.error('[supabase] upsert error:', error.message, error.details);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[supabase] upsert ok');
+    res.json({ ok: true });
+  } catch(err) {
+    console.error('[supabase] POST exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/supabase/sync', async (req, res) => {
+  console.log('[supabase] POST /api/supabase/sync — client ready:', !!supabase, '— projects received:', Array.isArray(req.body?.projects) ? req.body.projects.length : 'NOT AN ARRAY');
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  const { projects } = req.body;
+  if (!Array.isArray(projects)) return res.status(400).json({ error: 'projects must be an array' });
+  try {
+    const rows = projects.map(toDb);
+    console.log('[supabase] mapped rows sample:', JSON.stringify(rows[0]).slice(0, 120));
+    const { error } = await supabase.from('projects').upsert(rows, { onConflict: 'id' });
+    if (error) {
+      console.error('[supabase] bulk upsert error:', error.message, error.details, error.hint);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[supabase] bulk upsert ok — synced:', rows.length);
+    res.json({ ok: true, synced: rows.length });
+  } catch(err) {
+    console.error('[supabase] sync exception:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
