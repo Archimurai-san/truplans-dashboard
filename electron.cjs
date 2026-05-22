@@ -2,6 +2,35 @@ const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('el
 const path = require('path')
 const fs = require('fs')
 const { spawn } = require('child_process')
+const { autoUpdater } = require('electron-updater')
+
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = false
+
+autoUpdater.on('update-available', info => {
+  console.log('[updater] Update available:', info.version)
+})
+
+autoUpdater.on('update-not-available', () => {
+  console.log('[updater] App is up to date')
+})
+
+autoUpdater.on('update-downloaded', async info => {
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Ready',
+    message: `Version ${info.version} is ready to install.`,
+    detail: 'Install now and restart the app?',
+    buttons: ['Install Now', 'Later'],
+    defaultId: 0,
+    cancelId: 1,
+  })
+  if (response === 0) autoUpdater.quitAndInstall(false, true)
+})
+
+autoUpdater.on('error', err => {
+  console.error('[updater] Error:', err.message)
+})
 
 let serverProcess = null
 
@@ -272,6 +301,11 @@ app.disableHardwareAcceleration()
 app.whenReady().then(() => {
   startServer()
   setTimeout(createWindow, 1500)
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(err => console.error('[updater]', err.message))
+    }, 5000)
+  }
 })
 
 app.on('before-quit', () => {
