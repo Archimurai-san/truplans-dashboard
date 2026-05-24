@@ -513,7 +513,28 @@ function generateWorkflow(startDate, designer) {
 }
 
 const TEAM_ROLES = ["Lead Designer","Design Support","Permit Coordinator","Drafting","Project Manager","Trainee","Engineer","Admin"];
-const PALETTE = ["#e94560","#3498db","#9b59b6","#27ae60","#f39c12","#1abc9c","#e67e22","#e74c3c","#2ecc71","#16a085","#8e44ad","#d35400"];
+const PALETTE = [
+  "#e94560", // Crimson
+  "#e74c3c", // Red
+  "#ff6348", // Coral
+  "#e67e22", // Orange
+  "#f39c12", // Amber
+  "#f1c40f", // Yellow
+  "#2ecc71", // Lime Green
+  "#27ae60", // Forest Green
+  "#1abc9c", // Teal
+  "#00cec9", // Cyan
+  "#0984e3", // Sky Blue
+  "#3498db", // Royal Blue
+  "#6c5ce7", // Indigo
+  "#9b59b6", // Purple
+  "#e84393", // Magenta
+  "#fd79a8", // Pink
+  "#c0392b", // Dark Red
+  "#d4ac0d", // Gold
+  "#8d6e63", // Brown
+  "#95a5a6", // Gray
+];
 const fmt$ = n => "$" + Number(n).toLocaleString();
 const GANTT_S = new Date("2026-01-01"), GANTT_E = new Date("2026-12-31");
 const TDAYS = (GANTT_E - GANTT_S) / 86400000;
