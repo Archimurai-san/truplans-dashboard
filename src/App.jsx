@@ -1065,7 +1065,9 @@ function AnalyseModal({project,onClose,onSave}){
       contract:Number(e.grandTotal)||0,
       start:e.signedDate||e.signatureDate||e.contractDate||e.workOrderDate||project.start,
       notes:notesParts.join(' '),
-      scopeOfWork:e.scopeOfWork||[]
+      scopeOfWork:e.scopeOfWork||[],
+      contractPath:filename,
+      contracts:[...(project.contracts||[]),{...e,id:Date.now()}]
     },milestones);
     setPhase('saved');
     setTimeout(()=>onClose(),2200);
@@ -1296,53 +1298,70 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <button onClick={onBack} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-body)',background:'none',fontWeight:700}}>✕ Close</button>
         </div>
       </div>
-      <div style={{...S.card,marginBottom:20}}>
-        <div style={{display:'flex',alignItems:'flex-start',gap:24}}>
-          <div style={{flexShrink:0,textAlign:'center',minWidth:64}}>
-            <div style={{fontSize:36,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',lineHeight:1}}>W{currentWeek}</div>
-            <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px',marginTop:2}}>of 8</div>
-          </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'2px',marginBottom:6}}>
-              This Week · {currentBucket?.label||'—'}
-            </div>
-            {!project.start?(
-              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>Set a start date to activate the milestone tracker</div>
-            ):slaStatus.isExternal?(
-              <div style={{fontSize:11,color:'var(--status-hold-text)',fontFamily:'monospace'}}>⏸ SLA paused — external review in progress</div>
-            ):(
-              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                {dueThisWeek.map(step=>{
-                  const done=step.status==='Completed';
-                  const ip=step.status==='In Progress';
-                  return(
-                    <div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:4,background:done?'var(--status-done-bg)':ip?'var(--status-ip-bg)':'var(--bg-subtle)',border:`1px solid ${done?'var(--status-done-text)':ip?'#3498db33':'var(--border-primary)'}`}}>
-                      <span style={{fontSize:10,fontWeight:700,fontFamily:'monospace',color:done?'var(--status-done-text)':ip?'#3498db':'var(--text-faint)'}}>{done?'✓':ip?'▶':'○'}</span>
-                      <span style={{fontSize:9,color:done?'var(--status-done-text)':ip?'#3498db':'var(--text-muted)'}}><span style={{fontFamily:'monospace',fontWeight:700}}>{step.id}</span> {step.name}</span>
-                    </div>
-                  );
-                })}
+      {/* ROW 1 — 50/50 */}
+      <div style={{display:'flex',gap:20,alignItems:'flex-start',marginBottom:20}}>
+        <div style={{flex:'0 0 50%',minWidth:0}}>
+          <div style={{...S.card}}>
+            <div style={{display:'flex',alignItems:'flex-start',gap:24}}>
+              <div style={{flexShrink:0,textAlign:'center',minWidth:64}}>
+                <div style={{fontSize:36,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',lineHeight:1}}>W{currentWeek}</div>
+                <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px',marginTop:2}}>of 8</div>
               </div>
-            )}
-          </div>
-          {behindSchedule.length>0&&(
-            <div style={{flexShrink:0,minWidth:220,maxWidth:280}}>
-              <div style={{fontSize:9,fontWeight:700,color:'var(--sla-red-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:6}}>⚠ Behind Schedule ({behindSchedule.length})</div>
-              <div style={{display:'flex',flexDirection:'column',gap:3}}>
-                {behindSchedule.map(step=>(
-                  <div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 8px',borderRadius:3,background:'var(--sla-red-bg)'}}>
-                    <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace',color:'var(--sla-red-text)'}}>✗</span>
-                    <span style={{fontSize:9,color:'var(--sla-red-text)'}}><span style={{fontFamily:'monospace',fontWeight:700}}>{step.id}</span> {step.name}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'2px',marginBottom:6}}>
+                  This Week · {currentBucket?.label||'—'}
+                </div>
+                {!project.start?(
+                  <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>Set a start date to activate the milestone tracker</div>
+                ):slaStatus.isExternal?(
+                  <div style={{fontSize:11,color:'var(--status-hold-text)',fontFamily:'monospace'}}>⏸ SLA paused — external review in progress</div>
+                ):(
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                    {dueThisWeek.map(step=>{
+                      const done=step.status==='Completed';
+                      const ip=step.status==='In Progress';
+                      return(
+                        <div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:4,background:done?'var(--status-done-bg)':ip?'var(--status-ip-bg)':'var(--bg-subtle)',border:`1px solid ${done?'var(--status-done-text)':ip?'#3498db33':'var(--border-primary)'}`}}>
+                          <span style={{fontSize:10,fontWeight:700,fontFamily:'monospace',color:done?'var(--status-done-text)':ip?'#3498db':'var(--text-faint)'}}>{done?'✓':ip?'▶':'○'}</span>
+                          <span style={{fontSize:9,color:done?'var(--status-done-text)':ip?'#3498db':'var(--text-muted)'}}><span style={{fontFamily:'monospace',fontWeight:700}}>{step.id}</span> {step.name}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
+              </div>
+              {behindSchedule.length>0&&(
+                <div style={{flexShrink:0,minWidth:220,maxWidth:280}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'var(--sla-red-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:6}}>⚠ Behind Schedule ({behindSchedule.length})</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                    {behindSchedule.map(step=>(
+                      <div key={step.id} style={{display:'flex',alignItems:'center',gap:5,padding:'3px 8px',borderRadius:3,background:'var(--sla-red-bg)'}}>
+                        <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace',color:'var(--sla-red-text)'}}>✗</span>
+                        <span style={{fontSize:9,color:'var(--sla-red-text)'}}><span style={{fontFamily:'monospace',fontWeight:700}}>{step.id}</span> {step.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{flex:'0 0 50%',minWidth:0}}>
+          {(project.contracts||[]).length>0
+            ?<ContractModule project={project} onUpdate={updates=>onUpdateFields?.(project.id,updates)} inline={true}/>
+            :<div style={S.card}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:12}}>Contract</div>
+              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',marginBottom:16}}>No contract attached — analyse a PDF to populate.</div>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <button onClick={onAnalyse} style={{...S.btn,fontSize:10,padding:'6px 14px'}}>🔍 Analyse Contract</button>
+                <button onClick={onContracts} style={{...S.ghost,fontSize:10,padding:'6px 14px'}}>+ Add Manually</button>
               </div>
             </div>
-          )}
+          }
         </div>
       </div>
-      <div style={{display:'flex',gap:20,alignItems:'flex-start'}}>
-        {/* LEFT COLUMN */}
-        <div style={{flex:'0 0 58%',minWidth:0,display:'flex',flexDirection:'column',gap:16}}>
+      {/* ROW 2 — full width */}
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
         <div style={S.card}>
           <ST>Client Info</ST>
           <InfoRow label="Client" value={project.client}/>
@@ -1382,98 +1401,83 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             </div>
           </div>
         </div>
-      <div style={S.card}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
-          <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace'}}>Payment Milestones</div>
-          <div style={{fontSize:11,fontFamily:'monospace',display:'flex',gap:16,flexWrap:'wrap'}}>
-            <span style={{color:'var(--status-done-text)'}}>Collected: {fmt$(collected)}</span>
-            <span style={{color:'var(--status-hold-text)'}}>Invoiced: {fmt$(invoiced)}</span>
-            <span style={{color:'var(--sla-red-text)'}}>Outstanding: {fmt$(totalPmt-collected)}</span>
+        <div style={S.card}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace'}}>Payment Milestones</div>
+            <div style={{fontSize:11,fontFamily:'monospace',display:'flex',gap:16,flexWrap:'wrap'}}>
+              <span style={{color:'var(--status-done-text)'}}>Collected: {fmt$(collected)}</span>
+              <span style={{color:'var(--status-hold-text)'}}>Invoiced: {fmt$(invoiced)}</span>
+              <span style={{color:'var(--sla-red-text)'}}>Outstanding: {fmt$(totalPmt-collected)}</span>
+            </div>
           </div>
-        </div>
-        <Pb pct={totalPmt>0?Math.round(collected/totalPmt*100):0} color="var(--status-done-text)"/>
-        <div style={{display:'flex',gap:12,marginTop:16,flexWrap:'wrap'}}>
-          {milestones.map(m=>(
-            <div key={m.code} style={{flex:'1 1 140px',minWidth:130,background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:8,padding:'12px',borderTop:`3px solid ${PMT_SS[m.status].text}`}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                <span style={{fontSize:12,fontWeight:700,color:'var(--accent)',fontFamily:'monospace'}}>{m.code}</span>
-                <button onClick={()=>cyclePmt(m.code)} style={{background:PMT_SS[m.status].bg,color:PMT_SS[m.status].text,border:'none',borderRadius:99,padding:'2px 8px',fontSize:9,fontWeight:700,cursor:'pointer',fontFamily:'monospace'}}>{m.status}</button>
-              </div>
-              <div style={{fontSize:11,color:'var(--text-bright)',fontWeight:600,marginBottom:2}}>{m.label}</div>
-              <div style={{fontSize:9,color:'var(--text-muted)',marginBottom:8}}>{m.desc}</div>
-              <div style={{fontSize:14,fontWeight:700,color:'var(--text-bright)',fontFamily:'monospace'}}>{fmt$(m.amount)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={S.card}>
-        <ST>Documents</ST>
-        <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
-          {contractPath?(
-            <div style={{background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:8,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,minWidth:220}}>
-              <span style={{fontSize:28}}>📄</span>
-              <div style={{flex:1,overflow:'hidden'}}><div style={{fontSize:11,color:'var(--text-body)',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{contractFilename}</div><div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',marginTop:2}}>Contract PDF</div></div>
-              <button onClick={()=>doOpenPath(contractPath)} style={{...S.ghost,padding:'4px 10px',fontSize:10}}>Open</button>
-            </div>
-          ):(
-            <div style={{background:'var(--bg-subtle)',border:'1px dashed var(--border-secondary)',borderRadius:8,padding:'14px 20px',display:'flex',alignItems:'center',gap:10,color:'var(--text-muted)'}}>
-              <span style={{fontSize:20}}>📎</span><span style={{fontSize:11}}>No contract PDF attached</span>
-            </div>
-          )}
-          <button onClick={()=>onPickPDF(project)} style={{...S.ghost,padding:'8px 16px',fontSize:11}}>{contractPath?'↺ Replace PDF':'+ Attach Contract PDF'}</button>
-        </div>
-      </div>
-      <div style={S.card}>
-        <ST>Scope of Work</ST>
-        {(project.scopeOfWork||[]).length>0?(
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            {Object.entries((project.scopeOfWork||[]).reduce((acc,item)=>{const cat=item.category||'Other';(acc[cat]=acc[cat]||[]).push(item.description);return acc},{})).map(([cat,descs])=>(
-              <div key={cat}>
-                <div style={{fontSize:9,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:5}}>{cat}</div>
-                {descs.map((d,i)=><div key={i} style={{display:'flex',gap:7,alignItems:'flex-start',marginBottom:3}}><span style={{color:'var(--status-done-text)',fontSize:11,fontWeight:700,flexShrink:0}}>✓</span><span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.4}}>{d}</span></div>)}
+          <Pb pct={totalPmt>0?Math.round(collected/totalPmt*100):0} color="var(--status-done-text)"/>
+          <div style={{display:'flex',gap:12,marginTop:16,flexWrap:'wrap'}}>
+            {milestones.map(m=>(
+              <div key={m.code} style={{flex:'1 1 140px',minWidth:130,background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:8,padding:'12px',borderTop:`3px solid ${PMT_SS[m.status].text}`}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                  <span style={{fontSize:12,fontWeight:700,color:'var(--accent)',fontFamily:'monospace'}}>{m.code}</span>
+                  <button onClick={()=>cyclePmt(m.code)} style={{background:PMT_SS[m.status].bg,color:PMT_SS[m.status].text,border:'none',borderRadius:99,padding:'2px 8px',fontSize:9,fontWeight:700,cursor:'pointer',fontFamily:'monospace'}}>{m.status}</button>
+                </div>
+                <div style={{fontSize:11,color:'var(--text-bright)',fontWeight:600,marginBottom:2}}>{m.label}</div>
+                <div style={{fontSize:9,color:'var(--text-muted)',marginBottom:8}}>{m.desc}</div>
+                <div style={{fontSize:14,fontWeight:700,color:'var(--text-bright)',fontFamily:'monospace'}}>{fmt$(m.amount)}</div>
               </div>
             ))}
           </div>
-        ):(
-          <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No scope of work — analyse a contract to populate.</div>
-        )}
-      </div>
-      <div style={S.card}>
-        <ST>Emails</ST>
-        {(() => {
-          const related = threads.filter(t => matchProject(t.from, t.subject)?.split(' · ')[0] === project.id);
-          if (related.length === 0) return (
-            <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No emails found</div>
-          );
-          const fFrom = raw => { const m = raw.match(/^"?([^"<]+)"?\s*</); return m ? m[1].trim() : raw.replace(/<.*>/,'').trim()||raw; };
-          const fDate = raw => { if(!raw) return ''; const d=new Date(raw); if(isNaN(d)) return raw; const now=new Date(); if(d.toDateString()===now.toDateString()) return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',...(d.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}); };
-          return (
-            <div style={{display:'flex',flexDirection:'column',gap:1}}>
-              {related.map(t => (
-                <div key={t.id} onClick={() => onOpenThread?.(t)} style={{background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:6,padding:'9px 14px',display:'grid',gridTemplateColumns:'160px 1fr auto',gap:'0 12px',alignItems:'center',cursor:onOpenThread?'pointer':'default'}}>
-                  <div style={{fontSize:11,fontWeight:700,color:'var(--text-bright)',fontFamily:'monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={t.from}>{fFrom(t.from)}</div>
-                  <div style={{fontSize:11,color:'var(--text-body)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.subject}</div>
-                  <div style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fDate(t.date)}</div>
+        </div>
+        <div style={S.card}>
+          <ST>Documents</ST>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+            {contractPath?(
+              <div style={{background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:8,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,minWidth:220}}>
+                <span style={{fontSize:28}}>📄</span>
+                <div style={{flex:1,overflow:'hidden'}}><div style={{fontSize:11,color:'var(--text-body)',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{contractFilename}</div><div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',marginTop:2}}>Contract PDF</div></div>
+                <button onClick={()=>doOpenPath(contractPath)} style={{...S.ghost,padding:'4px 10px',fontSize:10}}>Open</button>
+              </div>
+            ):(
+              <div style={{background:'var(--bg-subtle)',border:'1px dashed var(--border-secondary)',borderRadius:8,padding:'14px 20px',display:'flex',alignItems:'center',gap:10,color:'var(--text-muted)'}}>
+                <span style={{fontSize:20}}>📎</span><span style={{fontSize:11}}>No contract PDF attached</span>
+              </div>
+            )}
+            <button onClick={()=>onPickPDF(project)} style={{...S.ghost,padding:'8px 16px',fontSize:11}}>{contractPath?'↺ Replace PDF':'+ Attach Contract PDF'}</button>
+          </div>
+        </div>
+        <div style={S.card}>
+          <ST>Scope of Work</ST>
+          {(project.scopeOfWork||[]).length>0?(
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {Object.entries((project.scopeOfWork||[]).reduce((acc,item)=>{const cat=item.category||'Other';(acc[cat]=acc[cat]||[]).push(item.description);return acc},{})).map(([cat,descs])=>(
+                <div key={cat}>
+                  <div style={{fontSize:9,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:5}}>{cat}</div>
+                  {descs.map((d,i)=><div key={i} style={{display:'flex',gap:7,alignItems:'flex-start',marginBottom:3}}><span style={{color:'var(--status-done-text)',fontSize:11,fontWeight:700,flexShrink:0}}>✓</span><span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.4}}>{d}</span></div>)}
                 </div>
               ))}
             </div>
-          );
-        })()}
+          ):(
+            <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No scope of work — analyse a contract to populate.</div>
+          )}
         </div>
-        </div>{/* end left column */}
-        {/* RIGHT COLUMN */}
-        <div style={{flex:1,minWidth:0}}>
-          {(project.contracts||[]).length>0
-            ?<ContractModule project={project} onUpdate={updates=>onUpdateFields?.(project.id,updates)} inline={true}/>
-            :<div style={S.card}>
-              <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:12}}>Contract</div>
-              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',marginBottom:16}}>No contract attached — analyse a PDF to populate.</div>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                <button onClick={onAnalyse} style={{...S.btn,fontSize:10,padding:'6px 14px'}}>🔍 Analyse Contract</button>
-                <button onClick={onContracts} style={{...S.ghost,fontSize:10,padding:'6px 14px'}}>+ Add Manually</button>
+        <div style={S.card}>
+          <ST>Emails</ST>
+          {(() => {
+            const related = threads.filter(t => matchProject(t.from, t.subject)?.split(' · ')[0] === project.id);
+            if (related.length === 0) return (
+              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No emails found</div>
+            );
+            const fFrom = raw => { const m = raw.match(/^"?([^"<]+)"?\s*</); return m ? m[1].trim() : raw.replace(/<.*>/,'').trim()||raw; };
+            const fDate = raw => { if(!raw) return ''; const d=new Date(raw); if(isNaN(d)) return raw; const now=new Date(); if(d.toDateString()===now.toDateString()) return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',...(d.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}); };
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                {related.map(t => (
+                  <div key={t.id} onClick={() => onOpenThread?.(t)} style={{background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:6,padding:'9px 14px',display:'grid',gridTemplateColumns:'160px 1fr auto',gap:'0 12px',alignItems:'center',cursor:onOpenThread?'pointer':'default'}}>
+                    <div style={{fontSize:11,fontWeight:700,color:'var(--text-bright)',fontFamily:'monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={t.from}>{fFrom(t.from)}</div>
+                    <div style={{fontSize:11,color:'var(--text-body)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.subject}</div>
+                    <div style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fDate(t.date)}</div>
+                  </div>
+                ))}
               </div>
-            </div>
-          }
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -1745,7 +1749,7 @@ ${pdfTxt.slice(0,8000)}`}]});
   const addContract=()=>{const nc={id:`CTR-${Date.now()}`,type:"Design + Construction",contractor:"",contractorLic:"",signedDate:"",totalAmount:0,estStart:"",estCompletion:"",constructionWeeks:"",docusignId:"",...JSON.parse(JSON.stringify(CONTRACT_TEMPLATE)),aiAnalysis:null};setCtrs(p=>[...p,nc]);setCi(ctrs.length);};
   const clearAI=()=>{setAiRes(null);setCtrs(prev=>prev.map((c,i)=>i===ci?{...c,aiAnalysis:null}:c));};
 
-  const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","addendums","ai analysis"];
+  const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","ai analysis"];
   const ai=aiRes||(ctr?.aiAnalysis);
 
   const moduleBody=(
