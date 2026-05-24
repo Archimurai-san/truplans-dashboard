@@ -1700,6 +1700,14 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   useEffect(()=>{if(!_phInit.current){_phInit.current=true;return;}onUpdate?.({phases});},[phases]);
   const _ctrsInit=useRef(false);
   useEffect(()=>{if(!_ctrsInit.current){_ctrsInit.current=true;return;}onUpdate?.({contracts:ctrs});},[ctrs]);
+  const _lastContractsLen=useRef(project.contracts.length);
+  useEffect(()=>{
+    if(project.contracts.length!==_lastContractsLen.current&&project.contracts.length>0){
+      _lastContractsLen.current=project.contracts.length;
+      setCtrs(project.contracts);
+      setCi(0);
+    }
+  },[project.contracts.length]);
 
   const [newAdd,setNewAdd]=useState({title:'',description:'',amount:'',date:new Date().toISOString().slice(0,10),status:'Draft',notes:''});
   const ADD_STATUSES=['Draft','Sent to Client','Signed','Approved'];
