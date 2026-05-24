@@ -27,7 +27,7 @@ function loadConfig() {
   } catch(e) {
     console.log("No config.json found — using built-in defaults.");
   }
-  API_KEY = config.anthropicKey || "";
+  // anthropicKey is loaded from Supabase app_config, not config.json
   gmailRefreshToken = config.gmailRefreshToken || null;
   gmailEmail = config.gmailEmail || DEFAULT_GMAIL_EMAIL;
   const supabaseUrl      = config.supabaseUrl      || DEFAULT_SUPABASE_URL;
@@ -135,7 +135,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/claude', async (req, res) => {
-  if (!API_KEY) return res.status(500).json({ error: "No API key in config.json" });
+  if (!API_KEY) return res.status(500).json({ error: "Anthropic API key not loaded — check Supabase app_config table" });
   res.setTimeout(610000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 600000);
@@ -378,7 +378,7 @@ function htmlPage(title, body) {
 
 app.listen(PORT, () => {
   console.log(`\n🚀 TruPlans API proxy running on http://localhost:${PORT}`);
-  console.log(API_KEY ? "✓  API key loaded" : "⚠  No API key — add to config.json");
+  console.log(API_KEY ? "✓  Anthropic key ready" : "ℹ  Anthropic key pending — loading from Supabase app_config");
   console.log(gmailRefreshToken ? "✓  Gmail token present" : "ℹ  Gmail not yet connected");
   console.log(`\nDashboard: http://localhost:5173\n`);
 });
