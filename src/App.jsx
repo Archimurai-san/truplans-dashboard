@@ -1347,17 +1347,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           </div>
         </div>
         <div style={{flex:'0 0 50%',minWidth:0}}>
-          {(project.contracts||[]).length>0
-            ?<ContractModule project={project} onUpdate={updates=>onUpdateFields?.(project.id,updates)} inline={true}/>
-            :<div style={S.card}>
-              <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:12}}>Contract</div>
-              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',marginBottom:16}}>No contract attached — analyse a PDF to populate.</div>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                <button onClick={onAnalyse} style={{...S.btn,fontSize:10,padding:'6px 14px'}}>🔍 Analyse Contract</button>
-                <button onClick={onContracts} style={{...S.ghost,fontSize:10,padding:'6px 14px'}}>+ Add Manually</button>
-              </div>
-            </div>
-          }
+          <ContractModule project={project} onUpdate={updates=>onUpdateFields?.(project.id,updates)} inline={true}/>
         </div>
       </div>
       {/* ROW 2 — full width */}
@@ -1427,7 +1417,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
         </div>
         <div style={S.card}>
           <ST>Documents</ST>
-          <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
             {contractPath?(
               <div style={{background:'var(--bg-page)',border:'1px solid var(--border-primary)',borderRadius:8,padding:'12px 16px',display:'flex',alignItems:'center',gap:12,minWidth:220}}>
                 <span style={{fontSize:28}}>📄</span>
@@ -1439,7 +1429,11 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
                 <span style={{fontSize:20}}>📎</span><span style={{fontSize:11}}>No contract PDF attached</span>
               </div>
             )}
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button onClick={onAnalyse} style={{...S.ghost,fontSize:11,padding:'8px 16px',border:'1px solid #3498db',color:'#3498db'}}>🔍 Analyse Contract</button>
             <button onClick={()=>onPickPDF(project)} style={{...S.ghost,padding:'8px 16px',fontSize:11}}>{contractPath?'↺ Replace PDF':'+ Attach Contract PDF'}</button>
+            <button onClick={onContracts} style={{...S.ghost,fontSize:11,padding:'8px 16px',border:'1px solid #f0a842',color:'#f0a842'}}>+ Add Addendum</button>
           </div>
         </div>
         <div style={S.card}>
