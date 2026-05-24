@@ -1431,8 +1431,8 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             )}
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            <button onClick={onAnalyse} style={{...S.ghost,fontSize:11,padding:'8px 16px',border:'1px solid #3498db',color:'#3498db'}}>🔍 Analyse Contract</button>
             <button onClick={()=>onPickPDF(project)} style={{...S.ghost,padding:'8px 16px',fontSize:11}}>{contractPath?'↺ Replace PDF':'+ Attach Contract PDF'}</button>
+            <button onClick={onAnalyse} style={{...S.ghost,fontSize:11,padding:'8px 16px',border:'1px solid #3498db',color:'#3498db'}}>🔍 Analyse Contract</button>
             <button onClick={onContracts} style={{...S.ghost,fontSize:11,padding:'8px 16px',border:'1px solid #f0a842',color:'#f0a842'}}>+ Add Addendum</button>
           </div>
         </div>
@@ -1757,7 +1757,6 @@ ${pdfTxt.slice(0,8000)}`}]});
               <div style={{fontSize:11,color:"#888"}}>{project.client} · {project.city}</div>
             </div>}
           <div style={{display:"flex",gap:8}}>
-            <button style={{...S.ghost,fontSize:10}} onClick={addContract}>+ Add Contract</button>
             {!inline&&<button style={{...S.ghost,fontSize:10,color:"#555",borderColor:"#333"}} onClick={onClose}>✕</button>}
           </div>
         </div>
