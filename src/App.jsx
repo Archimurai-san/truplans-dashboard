@@ -2822,6 +2822,8 @@ export default function App(){
   const paymentDataRef=useRef(paymentData);paymentDataRef.current=paymentData;
   const notifPrefsRef=useRef(notifPrefs);notifPrefsRef.current=notifPrefs;
   const _projInit=useRef(false);
+  const _remoteUpdate=useRef(false);
+  const [realtimeStatus,setRealtimeStatus]=useState('connecting');
   useEffect(()=>{
     fetch(`${API_BASE}/api/supabase/projects`)
       .then(r=>r.json())
@@ -2840,6 +2842,7 @@ export default function App(){
   },[]);
   useEffect(()=>{
     if(!_projInit.current){_projInit.current=true;return;}
+    if(_remoteUpdate.current){_remoteUpdate.current=false;return;}
     try{localStorage.setItem("project-state",JSON.stringify(projects));}catch{}
     triggerSave();
     fetch(`${API_BASE}/api/supabase/sync`,{
@@ -2848,6 +2851,35 @@ export default function App(){
       body:JSON.stringify({projects}),
     }).catch(err=>console.error('[supabase] Failed to sync projects to cloud:', err.message));
   },[projects]);
+  useEffect(()=>{
+    if(!sbClient||!session) return;
+    const dbToApp=row=>({
+      id:row.id, name:row.name||'', client:row.client||'', designer:row.designer||'',
+      type:row.type||'', status:row.status||'In Progress', phase:row.phase||'',
+      city:row.city||'', contract:Number(row.contract)||0, invoiced:Number(row.invoiced)||0,
+      pct:Number(row.pct)||0, stamp:row.stamp||'', permit:row.permit||'',
+      start:row.start_date||null, end:row.end_date||null, notes:row.notes||'',
+      scopeOfWork:row.scope_of_work||[], workflow:row.workflow||[], team:[], contracts:[],
+    });
+    const channel=sbClient.channel('projects-realtime')
+      .on('postgres_changes',{event:'*',schema:'public',table:'projects'},payload=>{
+        if(payload.eventType==='INSERT'||payload.eventType==='UPDATE'){
+          const updated=dbToApp(payload.new);
+          _remoteUpdate.current=true;
+          setProjects(prev=>{
+            const exists=prev.some(p=>p.id===updated.id);
+            return exists?prev.map(p=>p.id===updated.id?{...p,...updated}:p):[...prev,updated];
+          });
+        } else if(payload.eventType==='DELETE'&&payload.old?.id){
+          _remoteUpdate.current=true;
+          setProjects(prev=>prev.filter(p=>p.id!==payload.old.id));
+        }
+      })
+      .subscribe(status=>{
+        setRealtimeStatus(status==='SUBSCRIBED'?'connected':'disconnected');
+      });
+    return()=>{sbClient.removeChannel(channel);setRealtimeStatus('connecting');};
+  },[session]);
   useEffect(()=>{
     const h=e=>{if(searchRef.current&&!searchRef.current.contains(e.target)){setSearchOpen(false);}};
     document.addEventListener('mousedown',h);
@@ -3588,6 +3620,10 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {notifUnread>0&&<div style={{position:'absolute',top:1,right:1,width:6,height:6,borderRadius:'50%',background:'var(--accent)',pointerEvents:'none'}}/>}
           </div>
           <div style={{minWidth:52,textAlign:'right'}}>{saveStatus==='saved'?<span style={{fontSize:10,color:'#27ae60',fontFamily:'monospace',fontWeight:700}}>Saved ✓</span>:<div style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'var(--border-secondary)'}}/>}</div>
+          {session&&<div style={{display:'flex',alignItems:'center',gap:4}} title={`Realtime: ${realtimeStatus}`}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:realtimeStatus==='connected'?'#27ae60':'#666',boxShadow:realtimeStatus==='connected'?'0 0 5px #27ae60':'none',transition:'all .3s'}}/>
+            <span style={{fontSize:8,color:realtimeStatus==='connected'?'#27ae60':'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px'}}>LIVE</span>
+          </div>}
           <div style={{position:'relative'}}>
             <button onClick={generateWeeklyReport} disabled={reportGenerating} title="Generate Weekly Report PDF" style={{background:"none",border:"1px solid var(--border-secondary)",color:reportGenerating?"var(--text-faint)":"var(--text-muted)",borderRadius:4,padding:"4px 8px",cursor:reportGenerating?"default":"pointer",fontSize:15,lineHeight:1}}>
               {reportGenerating?'⏳':'🖨'}
