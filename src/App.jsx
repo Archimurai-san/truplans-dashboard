@@ -2691,12 +2691,12 @@ export default function App(){
   const [authLoading,setAuthLoading]=useState(true);
 
   useEffect(()=>{
-    fetch(`${API_BASE}/api/config`)
-      .then(r=>r.json())
-      .then(async cfg=>{
-        if(!cfg.supabaseUrl||!cfg.supabaseAnonKey){setAuthLoading(false);return;}
-        const {createClient:cc}=await import('@supabase/supabase-js');
-        const sb=cc(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{flowType:'implicit'}});
+    const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if(!supabaseUrl||!supabaseAnonKey){setAuthLoading(false);return;}
+    import('@supabase/supabase-js').then(async({createClient:cc})=>{
+      try{
+        const sb=cc(supabaseUrl,supabaseAnonKey,{auth:{flowType:'implicit'}});
         setSbClient(sb);
         const{data:{session:s}}=await sb.auth.getSession();
         setSession(s||null);
@@ -2709,8 +2709,8 @@ export default function App(){
             if(first)setCurrentUser(first);
           }
         });
-      })
-      .catch(()=>setAuthLoading(false));
+      }catch{setAuthLoading(false);}
+    }).catch(()=>setAuthLoading(false));
   },[]);
 
   const [tab,setTab]=useState("dashboard");

@@ -11,26 +11,29 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const __dir = dirname(fileURLToPath(import.meta.url));
 
+const DEFAULT_SUPABASE_URL      = 'https://clskmcueoaoslacskjzj.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_PKi4TSl3088C_1zT0boUdg_t2Mf4Jo5';
+const DEFAULT_GMAIL_EMAIL       = 'radovan.truplans@gmail.com';
+
 let API_KEY = "";
 let gmailRefreshToken = null;
-let gmailEmail = "";
+let gmailEmail = DEFAULT_GMAIL_EMAIL;
 let supabase = null;
 
 function loadConfig() {
+  let config = {};
   try {
-    const config = JSON.parse(readFileSync(join(__dir, 'config.json'), 'utf8'));
-    API_KEY = config.anthropicKey || "";
-    gmailRefreshToken = config.gmailRefreshToken || null;
-    gmailEmail = config.gmailEmail || "";
-    if (config.supabaseUrl && config.supabaseAnonKey) {
-      supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
-      console.log("✓  Supabase client initialised — URL:", config.supabaseUrl);
-    } else {
-      console.log("ℹ  Supabase not configured — supabaseUrl:", config.supabaseUrl, "supabaseAnonKey:", config.supabaseAnonKey ? "present" : "MISSING");
-    }
+    config = JSON.parse(readFileSync(join(__dir, 'config.json'), 'utf8'));
   } catch(e) {
-    console.log("No config.json found.");
+    console.log("No config.json found — using built-in defaults.");
   }
+  API_KEY = config.anthropicKey || "";
+  gmailRefreshToken = config.gmailRefreshToken || null;
+  gmailEmail = config.gmailEmail || DEFAULT_GMAIL_EMAIL;
+  const supabaseUrl      = config.supabaseUrl      || DEFAULT_SUPABASE_URL;
+  const supabaseAnonKey  = config.supabaseAnonKey  || DEFAULT_SUPABASE_ANON_KEY;
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
+  console.log("✓  Supabase client initialised — URL:", supabaseUrl);
 }
 
 function toDb(p) {
@@ -88,6 +91,24 @@ function saveConfig(updates) {
 }
 
 loadConfig();
+
+async function loadRemoteConfig() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase.from('app_config').select('key, value');
+    if (error) { console.error('[remote-config] Supabase error:', error.message); return; }
+    for (const row of data || []) {
+      if (row.key === 'anthropicKey' && row.value) {
+        API_KEY = row.value;
+        console.log('✓  Anthropic key loaded from Supabase app_config');
+      }
+    }
+  } catch(err) {
+    console.error('[remote-config] Failed to load remote config:', err.message);
+  }
+}
+
+loadRemoteConfig();
 
 let gmailCreds = null;
 try {
