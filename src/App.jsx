@@ -1067,7 +1067,7 @@ function AnalyseModal({project,onClose,onSave}){
       notes:notesParts.join(' '),
       scopeOfWork:e.scopeOfWork||[],
       contractPath:filename,
-      contracts:[...(project.contracts||[]),{...e,id:Date.now()}]
+      contracts:[...(project.contracts||[]),{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
     },milestones);
     setPhase('saved');
     setTimeout(()=>onClose(),2200);
