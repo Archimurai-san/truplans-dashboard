@@ -354,7 +354,6 @@ const PROJECTS_INIT = [
   { id:"634",     name:"Doyle",        client:"", city:"", type:"", designer:"Shirley", status:"In Progress", phase:"Prepare HOA Submission",     start:null, end:null, pct:0, stamp:"", permit:"", contract:0, invoiced:0, team:[], workflow:[], contracts:[], notes:"AV — HOA Submittal. HOA still holding up / submittal not approved. Contract NEEDED." },
   // ── RADOVAN'S PROJECTS ───────────────────────────────────────────────────
   // ── NELSON — PRESERVED EXACTLY ────────────────────────────────────────────
-  { id:"644", name:"Nelson Loft Conversion", client:"Natalie Nelson", city:"Carlsbad", type:"High Ceiling Conv.", designer:"Radovan", status:"In Progress", phase:"Design Dev", start:"2026-03-09", end:"2026-07-31", pct:5, stamp:"No", permit:"No", contract:75896, invoiced:1000, team:["Ayana"], contracts:[NELSON_CONTRACT] },
   // ── DESHPANDE — PRESERVED EXACTLY ──────────────────────────────────────────
   { id:"647",     name:"Deshpande",         client:"Deshpande",                      city:"San Diego", type:"CALOFT",       designer:"Radovan", status:"In Progress", phase:"", start:null,         end:null, pct:0, stamp:"", permit:"", contract:0,     invoiced:0, team:[], workflow:[], contracts:[], notes:"CALOFT garage/loft conversion. Scripps Ranch. RM-1-1 zone. APN 319-581-22. HOA submittal pending. 10874 Caminito Arcada, San Diego, CA 92131." },
   // ── PEECHA-GONZALEZ — PRESERVED EXACTLY ────────────────────────────────────
@@ -364,13 +363,7 @@ const PROJECTS_INIT = [
   ...p,
   startDate:p.start,
   targetDate:addDays(p.start,56),
-  phases:p.id==="644"
-    ?PHASES_WILLIS_WORKFLOW.map(pw=>
-        ["5.1","5.2","5.3","5.4","5.5","5.6","5.7"].includes(pw.id)?{id:pw.id,status:"done",dateCompleted:"2026-03-24",initials:"WT",notes:""}
-        :["5.8","5.9","5.10"].includes(pw.id)?{id:pw.id,status:"done",dateCompleted:"2026-03-26",initials:"WT",notes:""}
-        :["5.11","5.12","5.13","5.14","5.15","5.16"].includes(pw.id)?{id:pw.id,status:"done",dateCompleted:"2026-03-31",initials:"WT",notes:""}
-        :{id:pw.id,status:"not_started",dateCompleted:null,initials:"",notes:""})
-    :makeProjectPhases(p)
+  phases:makeProjectPhases(p)
 }));
 
 const PHASES = ["Schematic","Design Dev","Construction Docs","Permit Docs","Permit Review","Construction","Closeout"];
@@ -408,7 +401,7 @@ function generateTasksFromProjects(projects){
               if(!ph||ph.status==='done') continue;
               const def=PHASES_WILLIS_WORKFLOW.find(w=>w&&w.id===ph.id);
               const desc=String(def?def.name:ph.id||'Unknown step');
-              const status=ph.status==='in_progress'?'In Progress':'Not Started';
+              const status=ph.status==='done'?'Completed':ph.status==='in_progress'?'In Progress':'Not Started';
               tasks.push({job:String(project.id||''),projectName:String(project.name||''),desc,assigned:designer,due:'',stepId:String(ph.id||''),startDate,priority,status});
             }catch{}
           }
@@ -2352,8 +2345,6 @@ const SUBJECT_KEYWORDS = [
   ['PEECHA',         '648 · Peecha-Gonzalez'],
   ['GONZALEZ',       '648 · Peecha-Gonzalez'],
   ['ROTHERHAM',      '648 · Peecha-Gonzalez'],
-  ['NELSON',         '644 · Nelson'],
-  ['CARLSBAD',       '644 · Nelson'],
   ['IYER',           '621 · Iyer'],
   ['CHAPPALLI',      '629 · Chappalli'],
   ['THOMPSON',       '645 · Thompson'],
@@ -3388,8 +3379,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
                 return(
                   <tr key={i} style={{background:i%2===0?"transparent":"var(--bg-row-alt)"}}>
                     <td style={{...S.td,textAlign:'center',paddingLeft:8}}>
-                      {t.stepId&&<input type="checkbox" title="Mark complete" style={{width:14,height:14,cursor:'pointer',accentColor:'var(--accent)'}}
-                        onChange={e=>{if(e.target.checked)toggleTaskComplete(t.job,t.stepId,true);}}/>}
+                      {t.stepId&&<input type="checkbox" title={t.status==='Completed'?'Mark incomplete':'Mark complete'} checked={t.status==='Completed'} style={{width:14,height:14,cursor:'pointer',accentColor:'var(--accent)'}}
+                        onChange={e=>toggleTaskComplete(t.job,t.stepId,e.target.checked)}/>}
                     </td>
                     <td style={{...S.td,fontFamily:"monospace",fontSize:9,fontWeight:700,color:"var(--accent)",whiteSpace:"nowrap"}}>{t.job||'—'}</td>
                     <td style={{...S.td,fontSize:10,color:"var(--text-sub)",maxWidth:128,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.projectName||'—'}</td>
