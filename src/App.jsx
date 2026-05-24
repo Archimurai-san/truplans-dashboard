@@ -1579,9 +1579,9 @@ function TeamSettingsModal({teamMembers,setTeamMembers,onClose}){
           {Object.entries(members).map(([name,color])=>(
             <div key={name} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:6,marginBottom:6,background:"#0d0d1a",border:"1px solid #1e1e3a"}}>
               <div style={{width:32,height:32,borderRadius:"50%",background:color+"33",border:`2px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color,fontFamily:"monospace",flexShrink:0}}>{name[0]}</div>
-              <span style={{flex:1,fontSize:12,color:"#e0e0e0"}}>{name}</span>
-              <div style={{display:"flex",gap:3}}>{PALETTE.map(c=><div key={c} onClick={()=>changeColor(name,c)} style={{width:13,height:13,borderRadius:"50%",background:c,cursor:"pointer",border:color===c?"2px solid #fff":"1px solid transparent"}}/>)}</div>
-              <button onClick={()=>removeMember(name)} style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
+              <span style={{width:70,flexShrink:0,fontSize:12,color:"#e0e0e0"}}>{name}</span>
+              <div style={{display:"flex",flexWrap:"wrap",gap:3,width:200,flexShrink:0}}>{PALETTE.map(c=><div key={c} onClick={()=>changeColor(name,c)} style={{width:13,height:13,borderRadius:"50%",background:c,cursor:"pointer",border:color===c?"2px solid #fff":"1px solid transparent"}}/>)}</div>
+              <button onClick={()=>removeMember(name)} style={{flexShrink:0,background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
             </div>
           ))}
         </div>
