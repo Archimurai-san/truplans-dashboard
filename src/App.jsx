@@ -1,7 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { createClient } from '@supabase/supabase-js';
 
 const API_BASE = 'http://localhost:3001';
+
+const _sbUrl  = import.meta.env.VITE_SUPABASE_URL;
+const _sbKey  = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const sbClient = (_sbUrl && _sbKey) ? createClient(_sbUrl, _sbKey, { auth: { flowType: 'implicit' } }) : null;
 
 function fixDateYear(val) {
   if (!val || !val.includes('-')) return val;
@@ -2686,15 +2691,14 @@ function LoginScreen({sbClient}){
 }
 
 export default function App(){
-  const [sbClient,setSbClient]=useState(null);
   const [session,setSession]=useState(null);
   const [authLoading,setAuthLoading]=useState(true);
   const [userRole,setUserRole]=useState(null);
   const [userDesignerName,setUserDesignerName]=useState(null);
 
-  const applyUserRole=(sb,user)=>{
-    if(!sb||!user?.email) return;
-    sb.from('user_roles').select('role,designer_name').eq('email',user.email).single()
+  const applyUserRole=(user)=>{
+    if(!sbClient||!user?.email) return;
+    sbClient.from('user_roles').select('role,designer_name').eq('email',user.email).single()
       .then(({data})=>{
         if(data?.role){
           setUserRole(data.role);
@@ -2710,35 +2714,29 @@ export default function App(){
   };
 
   useEffect(()=>{
-    const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    if(!supabaseUrl||!supabaseAnonKey){setAuthLoading(false);return;}
-    import('@supabase/supabase-js').then(async({createClient:cc})=>{
-      try{
-        const sb=cc(supabaseUrl,supabaseAnonKey,{auth:{flowType:'implicit'}});
-        setSbClient(sb);
-        const{data:{session:s}}=await sb.auth.getSession();
-        setSession(s||null);
-        if(s?.user){
-          const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||'';
-          const first=name.split(' ')[0];
-          if(first)setCurrentUser(first);
-          applyUserRole(sb,s.user);
-        }
-        setAuthLoading(false);
-        sb.auth.onAuthStateChange((_e,s)=>{
-          setSession(s||null);
-          if(s?.user){
-            const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||'';
-            const first=name.split(' ')[0];
-            if(first)setCurrentUser(first);
-            applyUserRole(sb,s.user);
-          } else {
-            setUserRole(null);setUserDesignerName(null);
-          }
-        });
-      }catch{setAuthLoading(false);}
+    if(!sbClient){setAuthLoading(false);return;}
+    sbClient.auth.getSession().then(({data:{session:s}})=>{
+      setSession(s||null);
+      if(s?.user){
+        const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||'';
+        const first=name.split(' ')[0];
+        if(first)setCurrentUser(first);
+        applyUserRole(s.user);
+      }
+      setAuthLoading(false);
     }).catch(()=>setAuthLoading(false));
+    const{data:{subscription}}=sbClient.auth.onAuthStateChange((_e,s)=>{
+      setSession(s||null);
+      if(s?.user){
+        const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||'';
+        const first=name.split(' ')[0];
+        if(first)setCurrentUser(first);
+        applyUserRole(s.user);
+      } else {
+        setUserRole(null);setUserDesignerName(null);
+      }
+    });
+    return()=>subscription.unsubscribe();
   },[]);
 
   const [tab,setTab]=useState("dashboard");
