@@ -536,7 +536,7 @@ const PALETTE = [
   "#8d6e63", // Brown
   "#95a5a6", // Gray
 ];
-const fmt$ = n => "$" + Number(n).toLocaleString();
+const fmt$ = n => { const v = Number(n); return "$" + (isNaN(v) ? 0 : v).toLocaleString(); };
 const GANTT_S = new Date("2026-01-01"), GANTT_E = new Date("2026-12-31");
 const TDAYS = (GANTT_E - GANTT_S) / 86400000;
 function gBar(s,e) {
@@ -1720,7 +1720,7 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   const ctr=ci!==null?ctrs[ci]:null;
   const paid=ctr?ctr.paymentMilestones.filter(m=>m.paid).reduce((a,m)=>a+m.amount,0):0;
   const addendumTotal=ctr?(ctr.addendums||[]).filter(a=>a.status==='Signed'||a.status==='Approved').reduce((s,a)=>s+(Number(a.amount)||0),0):0;
-  const effectiveTotal=ctr?ctr.totalAmount+addendumTotal:0;
+  const effectiveTotal=ctr?(Number(ctr.totalAmount)||0)+addendumTotal:0;
   const due=ctr?effectiveTotal-paid:0;
   const pctP=ctr&&effectiveTotal>0?Math.round(paid/effectiveTotal*100):0;
 
