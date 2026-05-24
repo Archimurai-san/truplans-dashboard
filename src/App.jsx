@@ -2689,6 +2689,25 @@ export default function App(){
   const [sbClient,setSbClient]=useState(null);
   const [session,setSession]=useState(null);
   const [authLoading,setAuthLoading]=useState(true);
+  const [userRole,setUserRole]=useState(null);
+  const [userDesignerName,setUserDesignerName]=useState(null);
+
+  const applyUserRole=(sb,user)=>{
+    if(!sb||!user?.email) return;
+    sb.from('user_roles').select('role,designer_name').eq('email',user.email).single()
+      .then(({data})=>{
+        if(data?.role){
+          setUserRole(data.role);
+          setUserDesignerName(data.designer_name||null);
+          if(data.role==='designer'&&data.designer_name){
+            setCurrentUser(data.designer_name);
+            setFD(data.designer_name);
+            setFTD(data.designer_name);
+          }
+        }
+      })
+      .catch(()=>{});
+  };
 
   useEffect(()=>{
     const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
@@ -2700,6 +2719,12 @@ export default function App(){
         setSbClient(sb);
         const{data:{session:s}}=await sb.auth.getSession();
         setSession(s||null);
+        if(s?.user){
+          const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||'';
+          const first=name.split(' ')[0];
+          if(first)setCurrentUser(first);
+          applyUserRole(sb,s.user);
+        }
         setAuthLoading(false);
         sb.auth.onAuthStateChange((_e,s)=>{
           setSession(s||null);
@@ -2707,6 +2732,9 @@ export default function App(){
             const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||'';
             const first=name.split(' ')[0];
             if(first)setCurrentUser(first);
+            applyUserRole(sb,s.user);
+          } else {
+            setUserRole(null);setUserDesignerName(null);
           }
         });
       }catch{setAuthLoading(false);}
@@ -2931,7 +2959,7 @@ export default function App(){
   const [fTP,setFTP]=useState("All");
   const [fTS,setFTS]=useState("All");
   const [fTQ,setFTQ]=useState("");
-  const generatedTasks=useMemo(()=>generateTasksFromProjects(projects),[projects]);
+  const generatedTasks=useMemo(()=>generateTasksFromProjects(visibleProjects),[visibleProjects]);
   const activeProjectIds=useMemo(()=>new Set(projects.map(p=>String(p.id))),[projects]);
   const filteredTasks=useMemo(()=>{
     try{
@@ -2987,7 +3015,12 @@ export default function App(){
   const DS=["All",...Object.keys(teamMembers)];
   const SS=["All","In Progress","Completed","On Hold","Not Started"];
   const TS=["All","Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-  const filtered=useMemo(()=>projects.filter(p=>{
+  const visibleProjects=useMemo(()=>
+    userRole==='designer'&&userDesignerName
+      ?projects.filter(p=>p.designer===userDesignerName)
+      :projects,
+  [projects,userRole,userDesignerName]);
+  const filtered=useMemo(()=>visibleProjects.filter(p=>{
     if(fD!=="All"&&p.designer!==fD) return false;
     if(fS!=="All"&&p.status!==fS) return false;
     if(fT!=="All"&&p.type!==fT) return false;
@@ -3176,7 +3209,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
     <>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-          {[[DS,fD,setFD],[SS,fS,setFS],[TS,fT,setFT]].map((a,i)=><select key={i} style={S.sel} value={a[1]} onChange={e=>a[2](e.target.value)}>{a[0].map(o=><option key={o}>{o}</option>)}</select>)}
+          {[[DS,fD,setFD],[SS,fS,setFS],[TS,fT,setFT]].map((a,i)=><select key={i} disabled={i===0&&userRole==='designer'} style={{...S.sel,opacity:i===0&&userRole==='designer'?0.5:1}} value={a[1]} onChange={e=>a[2](e.target.value)}>{a[0].map(o=><option key={o}>{o}</option>)}</select>)}
           <select style={S.sel} value={fSLA} onChange={e=>setFSLA(e.target.value)}><option value="All">All SLA</option><option value="green">🟢 On Track</option><option value="amber">🟡 Amber</option><option value="red">🔴 Red Zone</option></select>
           {fSLA!=="All"&&<button style={{...S.ghost,padding:"4px 10px",fontSize:10}} onClick={()=>setFSLA("All")}>✕ Clear SLA</button>}
           <span style={{fontSize:10,color:"#444",fontFamily:"monospace"}}>{filtered.length} projects</span>
@@ -3209,7 +3242,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
     <div style={{...S.card,overflowX:"auto"}}>
       <ST>2026 Project Timeline</ST>
       <div style={{display:"flex",marginBottom:4,marginLeft:260}}>{MTHS.map((m,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:9,color:"var(--accent)",fontFamily:"monospace",borderLeft:"1px solid var(--bg-subtle)",paddingLeft:2}}>{m}</div>)}</div>
-      {projects.map((p,i)=>{const bar=gBar(p.start,p.end),color=PALETTE[i%6];return<div key={p.id} style={{display:"flex",alignItems:"center",marginBottom:4,minWidth:900}}>
+      {visibleProjects.map((p,i)=>{const bar=gBar(p.start,p.end),color=PALETTE[i%6];return<div key={p.id} style={{display:"flex",alignItems:"center",marginBottom:4,minWidth:900}}>
         <div style={{width:260,flexShrink:0,display:"flex",alignItems:"center",gap:6,paddingRight:10}}><MemberAv name={p.designer} size={20}/><div style={{overflow:"hidden"}}><div style={{fontSize:10,color:"var(--accent)",fontFamily:"monospace"}}>{p.id}</div><div style={{fontSize:10,color:"var(--text-body)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:190}}>{p.name}</div></div></div>
         <div style={{flex:1,position:"relative",height:22,background:"var(--bg-secondary)",borderRadius:2}}>
           {MTHS.map((_,mi)=><div key={mi} style={{position:"absolute",left:(mi/12*100)+"%",top:0,bottom:0,width:1,background:"var(--bg-subtle)"}}/>)}
