@@ -92,6 +92,7 @@ const CONTRACT_TEMPLATE = {
     { id:"hc7", label:"Duct soffit required due to routing constraints (§5.1)", flagged:false, notes:"" },
   ],
   changeOrders: [],
+  addendums: [],
   aiAnalysis: null,
 };
 
@@ -1685,10 +1686,20 @@ function ContractModule({project,onClose,onUpdate}){
   const _ctrsInit=useRef(false);
   useEffect(()=>{if(!_ctrsInit.current){_ctrsInit.current=true;return;}onUpdate?.({contracts:ctrs});},[ctrs]);
 
+  const [newAdd,setNewAdd]=useState({title:'',description:'',amount:'',date:new Date().toISOString().slice(0,10),status:'Draft',notes:''});
+  const ADD_STATUSES=['Draft','Sent to Client','Signed','Approved'];
+  const ADD_COLORS={Draft:'#888','Sent to Client':'#3498db',Signed:'#f0a842',Approved:'#27ae60'};
+  const addAddendum=()=>{if(!newAdd.title.trim())return;setCtrs(prev=>prev.map((c,i)=>i!==ci?c:{...c,addendums:[...(c.addendums||[]),{...newAdd,id:`ADD-${Date.now()}`,amount:parseFloat(newAdd.amount)||0}]}));setNewAdd({title:'',description:'',amount:'',date:new Date().toISOString().slice(0,10),status:'Draft',notes:''});};
+  const updateAddendum=(id,field,value)=>setCtrs(prev=>prev.map((c,i)=>i!==ci?c:{...c,addendums:(c.addendums||[]).map(a=>a.id!==id?a:{...a,[field]:value})}));
+  const removeAddendum=(id)=>setCtrs(prev=>prev.map((c,i)=>i!==ci?c:{...c,addendums:(c.addendums||[]).filter(a=>a.id!==id)}));
+  const cycleAddStatus=(id)=>setCtrs(prev=>prev.map((c,i)=>i!==ci?c:{...c,addendums:(c.addendums||[]).map(a=>a.id!==id?a:{...a,status:ADD_STATUSES[(ADD_STATUSES.indexOf(a.status)+1)%ADD_STATUSES.length]})}));
+
   const ctr=ci!==null?ctrs[ci]:null;
   const paid=ctr?ctr.paymentMilestones.filter(m=>m.paid).reduce((a,m)=>a+m.amount,0):0;
-  const due=ctr?ctr.totalAmount-paid:0;
-  const pctP=ctr?Math.round(paid/ctr.totalAmount*100):0;
+  const addendumTotal=ctr?(ctr.addendums||[]).filter(a=>a.status==='Signed'||a.status==='Approved').reduce((s,a)=>s+(Number(a.amount)||0),0):0;
+  const effectiveTotal=ctr?ctr.totalAmount+addendumTotal:0;
+  const due=ctr?effectiveTotal-paid:0;
+  const pctP=ctr&&effectiveTotal>0?Math.round(paid/effectiveTotal*100):0;
 
   async function analyze(){
     if(!pdfTxt.trim())return;
@@ -1718,7 +1729,7 @@ ${pdfTxt.slice(0,8000)}`}]});
   const addContract=()=>{const nc={id:`CTR-${Date.now()}`,type:"Design + Construction",contractor:"",contractorLic:"",signedDate:"",totalAmount:0,estStart:"",estCompletion:"",constructionWeeks:"",docusignId:"",...JSON.parse(JSON.stringify(CONTRACT_TEMPLATE)),aiAnalysis:null};setCtrs(p=>[...p,nc]);setCi(ctrs.length);};
   const clearAI=()=>{setAiRes(null);setCtrs(prev=>prev.map((c,i)=>i===ci?{...c,aiAnalysis:null}:c));};
 
-  const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","ai analysis"];
+  const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","addendums","ai analysis"];
   const ai=aiRes||(ctr?.aiAnalysis);
 
   return(
@@ -1748,8 +1759,12 @@ ${pdfTxt.slice(0,8000)}`}]});
 
             {ctr&&<>
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}}>
-                {[["Total",fmt$(ctr.totalAmount),"#f0f0f0"],["Paid",fmt$(paid),"#52d68a"],["Outstanding",fmt$(due),due>0?"#f0a842":"#52d68a"],["Est. Start",ctr.estStart||"TBD","#ccc"],["Completion",ctr.estCompletion||"TBD","#ccc"]].map(([l,v,c])=>(
-                  <div key={l} style={{background:"#0d0d1a",borderRadius:6,padding:"10px 12px"}}><div style={{fontSize:9,color:"#555",letterSpacing:"1px",textTransform:"uppercase",fontFamily:"monospace"}}>{l}</div><div style={{fontSize:13,fontWeight:700,color:c,marginTop:3,fontFamily:"monospace"}}>{v}</div></div>
+                {[["Contract Total",fmt$(effectiveTotal),"#f0f0f0"],["Paid",fmt$(paid),"#52d68a"],["Outstanding",fmt$(due),due>0?"#f0a842":"#52d68a"],["Est. Start",ctr.estStart||"TBD","#ccc"],["Completion",ctr.estCompletion||"TBD","#ccc"]].map(([l,v,c])=>(
+                  <div key={l} style={{background:"#0d0d1a",borderRadius:6,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,color:"#555",letterSpacing:"1px",textTransform:"uppercase",fontFamily:"monospace"}}>{l}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:c,marginTop:3,fontFamily:"monospace"}}>{v}</div>
+                    {l==="Contract Total"&&addendumTotal>0&&<div style={{fontSize:8,color:"#27ae60",fontFamily:"monospace",marginTop:2}}>{`+${fmt$(addendumTotal)} addendums`}</div>}
+                  </div>
                 ))}
               </div>
               <div style={{marginBottom:16}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10,color:"#888",fontFamily:"monospace"}}><span>Payment progress</span><span style={{color:"#52d68a"}}>{pctP}%</span></div><Pb pct={pctP} color="#27ae60"/></div>
@@ -1948,6 +1963,44 @@ ${pdfTxt.slice(0,8000)}`}]});
                     <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newCO.amount} onChange={e=>setNewCO({...newCO,amount:e.target.value})} placeholder="0"/></div>
                     <button style={S.btn} onClick={addCO}>Add</button>
                   </div>
+                </div>
+              </div>}
+
+              {/* ADDENDUMS */}
+              {ctab==="addendums"&&<div>
+                <ST color="#d4ac0d">Addendums</ST>
+                <div style={{fontSize:10,color:"#888",marginBottom:14,padding:"8px 12px",background:"#0f0d00",borderRadius:4,borderLeft:"3px solid #d4ac0d",fontFamily:"monospace"}}>
+                  Addendums modify the original contract scope or value. Only Signed or Approved addendums are included in the Contract Total.
+                </div>
+                {(ctr.addendums||[]).length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No addendums yet.</div>}
+                {(ctr.addendums||[]).map(a=>(
+                  <div key={a.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                      <div style={{flex:1,marginRight:12}}>
+                        <input value={a.title} onChange={e=>updateAddendum(a.id,'title',e.target.value)} style={{...S.input,fontSize:12,fontWeight:700,marginBottom:6}} placeholder="Addendum title..."/>
+                        <textarea value={a.description} onChange={e=>updateAddendum(a.id,'description',e.target.value)} style={{...S.input,fontSize:11,height:60,resize:'vertical'}} placeholder="Scope change description..."/>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+                        <button onClick={()=>cycleAddStatus(a.id)} style={{background:ADD_COLORS[a.status]+'22',color:ADD_COLORS[a.status],border:`1px solid ${ADD_COLORS[a.status]}66`,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:9,fontFamily:'monospace',fontWeight:700,whiteSpace:'nowrap'}}>{a.status}</button>
+                        <button onClick={()=>removeAddendum(a.id)} style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
+                      </div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:8}}>
+                      <div><label style={S.label}>Amount ($)</label><input type="number" value={a.amount} onChange={e=>updateAddendum(a.id,'amount',parseFloat(e.target.value)||0)} style={S.input} placeholder="0"/></div>
+                      <div><label style={S.label}>Date</label><input type="date" value={a.date?String(a.date).substring(0,10):''} onChange={e=>updateAddendum(a.id,'date',fixDateYear(e.target.value))} style={S.input}/></div>
+                      <div><label style={S.label}>Notes</label><input value={a.notes} onChange={e=>updateAddendum(a.id,'notes',e.target.value)} style={S.input} placeholder="Internal notes..."/></div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
+                  <div style={{fontSize:10,color:"#d4ac0d",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW ADDENDUM</div>
+                  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label style={S.label}>Title</label><input style={S.input} value={newAdd.title} onChange={e=>setNewAdd({...newAdd,title:e.target.value})} placeholder="Addendum #1 — ..."/></div>
+                    <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newAdd.amount} onChange={e=>setNewAdd({...newAdd,amount:e.target.value})} placeholder="0"/></div>
+                    <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newAdd.date?String(newAdd.date).substring(0,10):''} onChange={e=>setNewAdd({...newAdd,date:fixDateYear(e.target.value)})}/></div>
+                  </div>
+                  <div style={{marginBottom:8}}><label style={S.label}>Description</label><input style={S.input} value={newAdd.description} onChange={e=>setNewAdd({...newAdd,description:e.target.value})} placeholder="Scope change description..."/></div>
+                  <button style={S.btn} onClick={addAddendum}>+ Add Addendum</button>
                 </div>
               </div>}
 
