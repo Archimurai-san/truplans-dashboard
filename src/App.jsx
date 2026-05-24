@@ -1694,6 +1694,7 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   const [newCO,setNewCO]=useState({date:"",description:"",amount:"",status:"Pending"});
   const [phases,setPhases]=useState(()=>project.phases&&project.phases.length===23?project.phases.map(p=>({...p})):makeDefaultPhases());
   const [expandedPhase,setExpandedPhase]=useState(null);
+  const [inlineOpen,setInlineOpen]=useState(false);
   const cyclePhase=id=>{const o=["not_started","in_progress","done"];setPhases(prev=>prev.map(p=>{if(p.id!==id)return p;const ni=(o.indexOf(p.status)+1)%o.length;return{...p,status:o[ni],dateCompleted:o[ni]==="done"?new Date().toISOString().slice(0,10):p.dateCompleted};}));};
   const _phInit=useRef(false);
   useEffect(()=>{if(!_phInit.current){_phInit.current=true;return;}onUpdate?.({phases});},[phases]);
@@ -1746,6 +1747,289 @@ ${pdfTxt.slice(0,8000)}`}]});
   const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","ai analysis"];
   const ai=aiRes||(ctr?.aiAnalysis);
 
+  const tabContentEl=ctr&&(
+    <>
+      {/* OVERVIEW */}
+      {ctab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[["Contractor",ctr.contractor],["License",ctr.contractorLic],["Contract Type",ctr.type],["Signed",ctr.signedDate],["DocuSign ID",ctr.docusignId],["Construction",ctr.constructionWeeks+" weeks"]].map(([l,v])=>(
+          <div key={l} style={{background:"#0d0d1a",padding:"10px 12px",borderRadius:4}}><div style={{fontSize:9,color:"#555",fontFamily:"monospace",letterSpacing:"1px",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:11,color:"#ccc",marginTop:3}}>{v||"—"}</div></div>
+        ))}
+      </div>}
+
+      {/* PHASES */}
+      {ctab==="phases"&&(()=>{
+        const sd=project.startDate||project.start||new Date().toISOString().slice(0,10);
+        const td=project.targetDate||addDays(sd,56);
+        const{week,zone,daysUntilTarget}=calculateZone(sd);
+        const iPhases=phases.filter(p=>!["5.21","5.22","5.23"].includes(p.id));
+        const ePhases=phases.filter(p=>["5.21","5.22","5.23"].includes(p.id));
+        const doneCt=iPhases.filter(p=>p.status==="done").length;
+        const phasePct=Math.round(doneCt/20*100);
+        const ZC={green:"#27ae60",yellow:"#f0a842",red:"#e74c3c",overdue:"#666"};
+        const ZL={green:"🟢 GREEN ZONE — On Track",yellow:"🟡 YELLOW ZONE — Finish Up",red:"🔴 RED ZONE — Overdue",overdue:"⚫ PAST HARD DEADLINE"};
+        const zc=ZC[zone];
+        const renderPhaseRow=(ph)=>{
+          const def=PHASES_WILLIS_WORKFLOW.find(d=>d.id===ph.id);
+          const isExp=expandedPhase===ph.id;
+          const isIP=ph.status==="in_progress";
+          return(
+            <div key={ph.id} style={{marginBottom:3,borderRadius:5,overflow:"hidden",border:`1px solid ${isExp?"#2a2a4a":"#1a1a2e"}`,...(isIP?{borderLeft:"3px solid #3498db"}:{})}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ph.status==="done"?"#0d1a0d":isIP?"#0a0d14":"#0d0d1a",cursor:"pointer"}} onClick={()=>setExpandedPhase(isExp?null:ph.id)}>
+                <div onClick={e=>{e.stopPropagation();cyclePhase(ph.id);}} style={{width:17,height:17,borderRadius:3,border:`1.5px solid ${ph.status==="done"?"#27ae60":isIP?"#3498db":"#333"}`,background:ph.status==="done"?"#27ae6033":isIP?"#3498db22":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
+                  {ph.status==="done"&&<span style={{color:"#27ae60",fontSize:10,lineHeight:1}}>✓</span>}
+                  {isIP&&<span style={{color:"#3498db",fontSize:7,lineHeight:1}}>●</span>}
+                </div>
+                <span style={{flex:1,fontSize:11,color:ph.status==="done"?"#52d68a":isIP?"#7bc8f5":"#ccc",fontWeight:isIP?700:400}}>{def?.name}</span>
+                {ph.dateCompleted&&<span style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>{ph.dateCompleted}</span>}
+                {ph.initials&&<span style={{fontSize:9,color:ph.status==="done"?"#27ae6077":"#555",fontFamily:"monospace",fontWeight:700,minWidth:22,textAlign:"right"}}>{ph.initials}</span>}
+                <span style={{color:"#2a2a4a",fontSize:9,marginLeft:2}}>{isExp?"▲":"▼"}</span>
+              </div>
+              {isExp&&(
+                <div style={{padding:"10px 14px",background:"#080810",borderTop:"1px solid #1a1a2e"}}>
+                  <div style={{fontSize:10,color:"#555",lineHeight:1.65,marginBottom:10,fontStyle:"italic"}}>{def?.description}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 90px 140px",gap:8,marginBottom:8}}>
+                    <div><label style={S.label}>Notes</label><input style={{...S.input,fontSize:10}} value={ph.notes} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,notes:e.target.value}:p))} placeholder="Notes..."/></div>
+                    <div><label style={S.label}>Initials</label><input style={{...S.input,fontSize:10}} value={ph.initials} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,initials:e.target.value.toUpperCase().slice(0,3)}:p))} placeholder="WT" maxLength={3}/></div>
+                    <div><label style={S.label}>Date Completed</label><input type="date" style={{...S.input,fontSize:10}} value={ph.dateCompleted ? String(ph.dateCompleted).substring(0,10) : ''} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,dateCompleted:fixDateYear(e.target.value)}:p))}/></div>
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    {["not_started","in_progress","done"].map(s=>(
+                      <button key={s} onClick={()=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,status:s,dateCompleted:s==="done"&&!p.dateCompleted?new Date().toISOString().slice(0,10):p.dateCompleted}:p))} style={{flex:1,padding:"4px 0",fontSize:9,fontFamily:"monospace",cursor:"pointer",borderRadius:3,border:`1px solid ${ph.status===s?"#e94560":"#2a2a4a"}`,background:ph.status===s?"#e9456022":"transparent",color:ph.status===s?"#e94560":"#555",letterSpacing:"0.5px"}}>{s.replace("_"," ").toUpperCase()}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        };
+        return(
+          <div>
+            <div style={{background:"#0a0a15",borderRadius:8,padding:"16px",marginBottom:16,border:"1px solid #1e1e3a"}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:8}}>{project.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:zc,flexShrink:0}}/>
+                <span style={{fontSize:11,color:"#ccc",fontFamily:"monospace"}}>Week {week} of 8 (Target)</span>
+                <span style={{fontSize:9,color:daysUntilTarget>0?"#555":"#e74c3c",fontFamily:"monospace"}}>{daysUntilTarget>0?daysUntilTarget+" days left":Math.abs(daysUntilTarget)+" days over"}</span>
+              </div>
+              <div style={{fontSize:9,color:"#444",fontFamily:"monospace",marginBottom:10,letterSpacing:"0.5px"}}>Started: {sd}  ·  Target: {td}</div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontFamily:"monospace",color:"#666",marginBottom:4}}>
+                <span>TRUPLANS STEPS COMPLETE</span><span style={{color:zc,fontWeight:700}}>{doneCt} / 20</span>
+              </div>
+              <Pb pct={phasePct} color={zc}/>
+              <div style={{marginTop:10,fontSize:11,fontWeight:700,fontFamily:"monospace",color:zc}}>{ZL[zone]}</div>
+            </div>
+            <div style={{fontSize:10,color:"#e94560",letterSpacing:"1.5px",fontFamily:"monospace",marginBottom:10,fontWeight:700}}>TRUPLANS WORK (8-WEEK SLA)</div>
+            {iPhases.map(ph=>renderPhaseRow(ph))}
+            <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 10px",opacity:0.45}}>
+              <div style={{flex:1,height:1,background:"#2a2a4a"}}/>
+              <span style={{fontSize:8,color:"#555",fontFamily:"monospace",whiteSpace:"nowrap",letterSpacing:"1.5px"}}>— END OF TRUPLANS CLOCK —</span>
+              <div style={{flex:1,height:1,background:"#2a2a4a"}}/>
+            </div>
+            <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1.5px",fontFamily:"monospace",marginBottom:10,fontWeight:700}}>EXTERNAL WAITING (CITY-CONTROLLED)</div>
+            {ePhases.map(ph=>renderPhaseRow(ph))}
+          </div>
+        );
+      })()}
+
+      {/* DESIGN SCOPE */}
+      {ctab==="design scope"&&<div>
+        <ST>TruPlans Design Deliverables (Items 0001–0009)</ST>
+        {ctr.designScope.map(item=>(
+          <div key={item.id} onClick={()=>item.included&&tog("designScope",item.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:4,marginBottom:4,background:item.included?"#0d0d1a":"#080810",cursor:item.included?"pointer":"default",opacity:item.included?1:0.35}}>
+            <div style={{width:18,height:18,borderRadius:3,border:`1.5px solid ${item.status==="Completed"?"#27ae60":item.status==="In Progress"?"#3498db":"#333"}`,background:item.status==="Completed"?"#27ae6033":item.status==="In Progress"?"#3498db22":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              {item.status==="Completed"&&<span style={{fontSize:10,color:"#27ae60"}}>✓</span>}
+              {item.status==="In Progress"&&<span style={{fontSize:8,color:"#3498db"}}>●</span>}
+            </div>
+            <span style={{fontSize:10,color:"#e94560",minWidth:36,fontFamily:"monospace"}}>{item.id}</span>
+            <span style={{flex:1,fontSize:11,color:item.included?"#ccc":"#444"}}>{item.label}</span>
+            <Sb status={item.included?item.status:"N/A"}/>
+          </div>
+        ))}
+        <div style={{fontSize:10,color:"#444",marginTop:8,fontFamily:"monospace"}}>Click to cycle: Not Started → In Progress → Completed</div>
+      </div>}
+
+      {/* CONSTRUCTION SCOPE */}
+      {ctab==="construction scope"&&<div>
+        <ST>CALOFT Construction Scope (Items 0100–0759)</ST>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+          {ctr.constructionScope.map(item=>(
+            <div key={item.id} onClick={()=>item.included&&tog("constructionScope",item.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:4,background:item.included?"#0d0d1a":"#080810",cursor:item.included?"pointer":"default",opacity:item.included?1:0.3}}>
+              <div style={{width:14,height:14,borderRadius:2,border:`1.5px solid ${item.status==="Completed"?"#27ae60":"#333"}`,background:item.status==="Completed"?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {item.status==="Completed"&&<span style={{fontSize:9,color:"#27ae60"}}>✓</span>}
+              </div>
+              <span style={{fontSize:9,color:"#555",minWidth:32,fontFamily:"monospace"}}>{item.id}</span>
+              <span style={{fontSize:10,color:item.included?"#bbb":"#333",flex:1}}>{item.label}</span>
+              {!item.included&&<span style={{fontSize:9,color:"#333",fontFamily:"monospace"}}>N/I</span>}
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* PAYMENTS */}
+      {ctab==="payments"&&<div>
+        <ST>Payment Milestone Tracker</ST>
+        <div style={{marginBottom:12,fontSize:10,color:"#f0a842",padding:"8px 12px",background:"#1a0d00",borderRadius:4,borderLeft:"3px solid #f0a842",fontFamily:"monospace"}}>
+          ⚠ Payments are milestone-based, NOT trade-cost based. Late = 3%/week penalty + possible project suspension.
+        </div>
+        {ctr.paymentMilestones.map((m,i)=>(
+          <div key={m.id} onClick={()=>togPay(i)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:6,marginBottom:6,background:m.paid?"#1a3d2b":"#0d0d1a",border:`1px solid ${m.paid?"#27ae6033":"#1e1e3a"}`,cursor:"pointer"}}>
+            <div style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${m.paid?"#27ae60":"#333"}`,background:m.paid?"#27ae60":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:"#fff",fontWeight:700}}>{m.paid?"✓":m.id}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:m.paid?"#52d68a":"#ccc"}}>{m.label}</div>
+              {m.paid&&m.paidDate&&<div style={{fontSize:9,color:"#52d68a55",marginTop:1,fontFamily:"monospace"}}>Paid {m.paidDate}</div>}
+            </div>
+            <div style={{fontSize:13,fontWeight:700,color:m.paid?"#52d68a":"#f0a842",fontFamily:"monospace"}}>{fmt$(m.amount)}</div>
+          </div>
+        ))}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px",background:"#0a0a15",borderRadius:6,marginTop:8}}>
+          <span style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>PAID / TOTAL</span>
+          <span style={{fontSize:14,fontWeight:700,color:"#52d68a",fontFamily:"monospace"}}>{fmt$(paid)} / {fmt$(ctr.totalAmount)}</span>
+        </div>
+      </div>}
+
+      {/* HOMEOWNER OBLIGATIONS */}
+      {ctab==="homeowner"&&<div>
+        <ST>Homeowner Obligations Checklist</ST>
+        <div style={{marginBottom:12,fontSize:10,color:"#3498db",padding:"8px 12px",background:"#0a0f1a",borderRadius:4,borderLeft:"3px solid #3498db",fontFamily:"monospace"}}>
+          Track these to prevent delays. Missing items = your deliverables get blocked.
+        </div>
+        {ctr.homeownerObligations.map(o=>(
+          <div key={o.id} onClick={()=>togHO(o.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:4,marginBottom:5,background:o.done?"#1a3d2b":"#0d0d1a",cursor:"pointer",border:`1px solid ${o.done?"#27ae6033":"#1e1e3a"}`}}>
+            <div style={{width:18,height:18,borderRadius:3,border:`1.5px solid ${o.done?"#27ae60":"#444"}`,background:o.done?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{o.done&&<span style={{fontSize:11,color:"#27ae60"}}>✓</span>}</div>
+            <span style={{fontSize:11,color:o.done?"#52d68a":"#ccc"}}>{o.label}</span>
+          </div>
+        ))}
+      </div>}
+
+      {/* HIDDEN CONDITIONS */}
+      {ctab==="hidden conditions"&&<div>
+        <ST color="#e74c3c">Hidden Condition Risk Flags (§4.0 / §4.1)</ST>
+        <div style={{marginBottom:12,fontSize:10,color:"#e74c3c",padding:"8px 12px",background:"#1a0808",borderRadius:4,borderLeft:"3px solid #e74c3c",fontFamily:"monospace"}}>
+          Per §4.0–4.1: hidden conditions = additional cost to homeowner. Flag any that arise during design or construction.
+        </div>
+        {ctr.hiddenConditionFlags.map(h=>(
+          <div key={h.id} onClick={()=>togHC(h.id)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:4,marginBottom:5,background:h.flagged?"#2d0d0d":"#0d0d1a",cursor:"pointer",border:`1px solid ${h.flagged?"#e74c3c55":"#1e1e3a"}`}}>
+            <div style={{width:18,height:18,borderRadius:3,border:`1.5px solid ${h.flagged?"#e74c3c":"#444"}`,background:h.flagged?"#e74c3c33":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{h.flagged&&<span style={{fontSize:11,color:"#e74c3c"}}>!</span>}</div>
+            <span style={{fontSize:11,color:h.flagged?"#e74c3c":"#aaa",flex:1}}>{h.label}</span>
+            {h.flagged&&<span style={{fontSize:9,color:"#e74c3c",fontFamily:"monospace",fontWeight:700}}>FLAGGED</span>}
+          </div>
+        ))}
+      </div>}
+
+      {/* CHANGE ORDERS */}
+      {ctab==="change orders"&&<div>
+        <ST color="#9b59b6">Change Order Log (§3.3 / §3.4)</ST>
+        <div style={{marginBottom:12,fontSize:10,color:"#9b59b6",padding:"8px 12px",background:"#0f0a1a",borderRadius:4,borderLeft:"3px solid #9b59b6",fontFamily:"monospace"}}>
+          Per CA B&P 7159: verbal changes are still billable. Document ALL changes here before work begins.
+        </div>
+        {ctr.changeOrders.length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No change orders logged.</div>}
+        {ctr.changeOrders.map(co=>(
+          <div key={co.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"12px",marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace"}}>{co.id} · {co.date}</div><div style={{fontSize:11,color:"#ccc",marginTop:3}}>{co.description}</div></div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:"#f0a842",fontFamily:"monospace"}}>{co.amount>=0?"+":""}{fmt$(co.amount)}</span><Sb status={co.status}/></div>
+            </div>
+          </div>
+        ))}
+        <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
+          <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW CHANGE ORDER</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr 100px",gap:8,alignItems:"end"}}>
+            <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newCO.date ? String(newCO.date).substring(0,10) : ''} onChange={e=>setNewCO({...newCO,date:fixDateYear(e.target.value)})}/></div>
+            <div><label style={S.label}>Description</label><input style={S.input} value={newCO.description} onChange={e=>setNewCO({...newCO,description:e.target.value})} placeholder="Scope change..."/></div>
+            <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newCO.amount} onChange={e=>setNewCO({...newCO,amount:e.target.value})} placeholder="0"/></div>
+            <button style={S.btn} onClick={addCO}>Add</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* ADDENDUMS */}
+      {ctab==="addendums"&&<div>
+        <ST color="#d4ac0d">Addendums</ST>
+        <div style={{fontSize:10,color:"#888",marginBottom:14,padding:"8px 12px",background:"#0f0d00",borderRadius:4,borderLeft:"3px solid #d4ac0d",fontFamily:"monospace"}}>
+          Addendums modify the original contract scope or value. Only Signed or Approved addendums are included in the Contract Total.
+        </div>
+        {(ctr.addendums||[]).length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No addendums yet.</div>}
+        {(ctr.addendums||[]).map(a=>(
+          <div key={a.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div style={{flex:1,marginRight:12}}>
+                <input value={a.title} onChange={e=>updateAddendum(a.id,'title',e.target.value)} style={{...S.input,fontSize:12,fontWeight:700,marginBottom:6}} placeholder="Addendum title..."/>
+                <textarea value={a.description} onChange={e=>updateAddendum(a.id,'description',e.target.value)} style={{...S.input,fontSize:11,height:60,resize:'vertical'}} placeholder="Scope change description..."/>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
+                <button onClick={()=>cycleAddStatus(a.id)} style={{background:ADD_COLORS[a.status]+'22',color:ADD_COLORS[a.status],border:`1px solid ${ADD_COLORS[a.status]}66`,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:9,fontFamily:'monospace',fontWeight:700,whiteSpace:'nowrap'}}>{a.status}</button>
+                <button onClick={()=>removeAddendum(a.id)} style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:8}}>
+              <div><label style={S.label}>Amount ($)</label><input type="number" value={a.amount} onChange={e=>updateAddendum(a.id,'amount',parseFloat(e.target.value)||0)} style={S.input} placeholder="0"/></div>
+              <div><label style={S.label}>Date</label><input type="date" value={a.date?String(a.date).substring(0,10):''} onChange={e=>updateAddendum(a.id,'date',fixDateYear(e.target.value))} style={S.input}/></div>
+              <div><label style={S.label}>Notes</label><input value={a.notes} onChange={e=>updateAddendum(a.id,'notes',e.target.value)} style={S.input} placeholder="Internal notes..."/></div>
+            </div>
+          </div>
+        ))}
+        <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
+          <div style={{fontSize:10,color:"#d4ac0d",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW ADDENDUM</div>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
+            <div><label style={S.label}>Title</label><input style={S.input} value={newAdd.title} onChange={e=>setNewAdd({...newAdd,title:e.target.value})} placeholder="Addendum #1 — ..."/></div>
+            <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newAdd.amount} onChange={e=>setNewAdd({...newAdd,amount:e.target.value})} placeholder="0"/></div>
+            <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newAdd.date?String(newAdd.date).substring(0,10):''} onChange={e=>setNewAdd({...newAdd,date:fixDateYear(e.target.value)})}/></div>
+          </div>
+          <div style={{marginBottom:8}}><label style={S.label}>Description</label><input style={S.input} value={newAdd.description} onChange={e=>setNewAdd({...newAdd,description:e.target.value})} placeholder="Scope change description..."/></div>
+          <button style={S.btn} onClick={addAddendum}>+ Add Addendum</button>
+        </div>
+      </div>}
+
+      {/* AI ANALYSIS */}
+      {ctab==="ai analysis"&&<div>
+        <ST>AI Contract Analysis</ST>
+        {!ai?(
+          <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:8,padding:"20px"}}>
+            <div style={{fontSize:11,color:"#888",marginBottom:12,lineHeight:1.6}}>Paste the contract text below. The AI will extract key obligations, risk flags, scope summary, payment breakdown, and action items tailored to TruPlans' role as the design firm.</div>
+            <textarea style={{...S.input,height:140,resize:"vertical",marginBottom:12,fontSize:11}} placeholder="Paste contract text here..." value={pdfTxt} onChange={e=>setPdfTxt(e.target.value)}/>
+            <button style={{...S.btn,opacity:analyzing?0.6:1}} onClick={analyze} disabled={analyzing}>{analyzing?"⏳ Analyzing...":"🤖 Analyze Contract"}</button>
+          </div>
+        ):(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontSize:10,color:"#555",fontFamily:"monospace"}}>Generated: {ai.generatedAt||"just now"}</div>
+              <button style={{...S.ghost,fontSize:10}} onClick={clearAI}>Re-analyze</button>
+            </div>
+            {ai.error?<div style={{color:"#e74c3c",fontSize:11}}>{ai.error}</div>:<>
+              <div style={{background:"#0d0d1a",borderRadius:6,padding:"14px",marginBottom:12,borderLeft:"3px solid #e94560"}}>
+                <div style={{fontSize:10,color:"#e94560",fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>PROJECT SUMMARY</div>
+                <div style={{fontSize:11,color:"#ccc",lineHeight:1.6}}>{ai.summary}</div>
+              </div>
+              {ai.riskFlags?.length>0&&<div style={{marginBottom:12}}>
+                <div style={{fontSize:10,color:"#e74c3c",fontFamily:"monospace",letterSpacing:"1px",marginBottom:8}}>RISK FLAGS</div>
+                {ai.riskFlags.map((r,i)=>(
+                  <div key={i} style={{display:"flex",gap:10,padding:"8px 12px",borderRadius:4,marginBottom:5,background:r.level==="HIGH"?"#200a0a":r.level==="MEDIUM"?"#1a1000":"#0a0f1a",borderLeft:`3px solid ${r.level==="HIGH"?"#e74c3c":r.level==="MEDIUM"?"#f39c12":"#3498db"}`}}>
+                    <span style={{fontSize:9,fontWeight:700,color:r.level==="HIGH"?"#e74c3c":r.level==="MEDIUM"?"#f39c12":"#3498db",minWidth:52,fontFamily:"monospace",marginTop:1}}>{r.level}</span>
+                    <span style={{fontSize:11,color:"#ccc",lineHeight:1.5}}>{r.text}</span>
+                  </div>
+                ))}
+              </div>}
+              {ai.actionItems?.length>0&&<div style={{marginBottom:12}}>
+                <div style={{fontSize:10,color:"#27ae60",fontFamily:"monospace",letterSpacing:"1px",marginBottom:8}}>ACTION ITEMS</div>
+                {ai.actionItems.map((item,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",borderRadius:4,marginBottom:4,background:"#0d0d1a"}}>
+                    <div style={{width:16,height:16,borderRadius:"50%",border:`1.5px solid ${item.done?"#27ae60":"#333"}`,background:item.done?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,marginTop:1}}>{item.done&&"✓"}</div>
+                    <span style={{fontSize:11,color:item.done?"#52d68a":"#ccc",lineHeight:1.5,textDecoration:item.done?"line-through":"none"}}>{item.text}</span>
+                  </div>
+                ))}
+              </div>}
+              {[["Scope Summary",ai.scopeSummary,"#27ae60"],["TruPlans Obligations",ai.obligations,"#3498db"],["Payment Summary",ai.paymentSummary,"#f0a842"]].map(([title,content,color])=>content&&(
+                <div key={title} style={{background:"#0d0d1a",borderRadius:6,padding:"12px",marginBottom:10,borderLeft:`3px solid ${color}`}}>
+                  <div style={{fontSize:10,color,fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>{title.toUpperCase()}</div>
+                  <div style={{fontSize:11,color:"#bbb",lineHeight:1.7,whiteSpace:"pre-line"}}>{content}</div>
+                </div>
+              ))}
+            </>}
+          </div>
+        )}
+      </div>}
+    </>
+  );
   const moduleBody=(
     <div style={inline?{}:{...S.mod}} onClick={inline?undefined:e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:inline?10:20}}>
@@ -1784,294 +2068,31 @@ ${pdfTxt.slice(0,8000)}`}]});
               <div style={{marginBottom:16}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10,color:"#888",fontFamily:"monospace"}}><span>Payment progress</span><span style={{color:"#52d68a"}}>{pctP}%</span></div><Pb pct={pctP} color="#27ae60"/></div>
 
               <div style={{display:"flex",gap:0,borderBottom:"1px solid #1e1e3a",marginBottom:18,flexWrap:"wrap"}}>
-                {CTABS.map(t=><button key={t} onClick={()=>setCtab(t)} style={{padding:"8px 12px",cursor:"pointer",fontSize:9,letterSpacing:"1px",fontWeight:ctab===t?700:400,color:ctab===t?"#e94560":"#555",background:"none",border:"none",borderBottom:ctab===t?"2px solid #e94560":"2px solid transparent",fontFamily:"monospace",textTransform:"uppercase"}}>{t}</button>)}
+                {CTABS.map(t=><button key={t} onClick={()=>{setCtab(t);if(inline)setInlineOpen(true);}} style={{padding:"8px 12px",cursor:"pointer",fontSize:9,letterSpacing:"1px",fontWeight:ctab===t?700:400,color:ctab===t?"#e94560":"#555",background:"none",border:"none",borderBottom:ctab===t?"2px solid #e94560":"2px solid transparent",fontFamily:"monospace",textTransform:"uppercase"}}>{t}</button>)}
               </div>
 
-              {/* OVERVIEW */}
-              {ctab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                {[["Contractor",ctr.contractor],["License",ctr.contractorLic],["Contract Type",ctr.type],["Signed",ctr.signedDate],["DocuSign ID",ctr.docusignId],["Construction",ctr.constructionWeeks+" weeks"]].map(([l,v])=>(
-                  <div key={l} style={{background:"#0d0d1a",padding:"10px 12px",borderRadius:4}}><div style={{fontSize:9,color:"#555",fontFamily:"monospace",letterSpacing:"1px",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:11,color:"#ccc",marginTop:3}}>{v||"—"}</div></div>
-                ))}
-              </div>}
-
-              {/* PHASES */}
-              {ctab==="phases"&&(()=>{
-                const sd=project.startDate||project.start||new Date().toISOString().slice(0,10);
-                const td=project.targetDate||addDays(sd,56);
-                const{week,zone,daysUntilTarget}=calculateZone(sd);
-                const iPhases=phases.filter(p=>!["5.21","5.22","5.23"].includes(p.id));
-                const ePhases=phases.filter(p=>["5.21","5.22","5.23"].includes(p.id));
-                const doneCt=iPhases.filter(p=>p.status==="done").length;
-                const phasePct=Math.round(doneCt/20*100);
-                const ZC={green:"#27ae60",yellow:"#f0a842",red:"#e74c3c",overdue:"#666"};
-                const ZL={green:"🟢 GREEN ZONE — On Track",yellow:"🟡 YELLOW ZONE — Finish Up",red:"🔴 RED ZONE — Overdue",overdue:"⚫ PAST HARD DEADLINE"};
-                const zc=ZC[zone];
-                const renderPhaseRow=(ph)=>{
-                  const def=PHASES_WILLIS_WORKFLOW.find(d=>d.id===ph.id);
-                  const isExp=expandedPhase===ph.id;
-                  const isIP=ph.status==="in_progress";
-                  return(
-                    <div key={ph.id} style={{marginBottom:3,borderRadius:5,overflow:"hidden",border:`1px solid ${isExp?"#2a2a4a":"#1a1a2e"}`,...(isIP?{borderLeft:"3px solid #3498db"}:{})}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ph.status==="done"?"#0d1a0d":isIP?"#0a0d14":"#0d0d1a",cursor:"pointer"}} onClick={()=>setExpandedPhase(isExp?null:ph.id)}>
-                        <div onClick={e=>{e.stopPropagation();cyclePhase(ph.id);}} style={{width:17,height:17,borderRadius:3,border:`1.5px solid ${ph.status==="done"?"#27ae60":isIP?"#3498db":"#333"}`,background:ph.status==="done"?"#27ae6033":isIP?"#3498db22":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
-                          {ph.status==="done"&&<span style={{color:"#27ae60",fontSize:10,lineHeight:1}}>✓</span>}
-                          {isIP&&<span style={{color:"#3498db",fontSize:7,lineHeight:1}}>●</span>}
-                        </div>
-                        <span style={{flex:1,fontSize:11,color:ph.status==="done"?"#52d68a":isIP?"#7bc8f5":"#ccc",fontWeight:isIP?700:400}}>{def?.name}</span>
-                        {ph.dateCompleted&&<span style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>{ph.dateCompleted}</span>}
-                        {ph.initials&&<span style={{fontSize:9,color:ph.status==="done"?"#27ae6077":"#555",fontFamily:"monospace",fontWeight:700,minWidth:22,textAlign:"right"}}>{ph.initials}</span>}
-                        <span style={{color:"#2a2a4a",fontSize:9,marginLeft:2}}>{isExp?"▲":"▼"}</span>
-                      </div>
-                      {isExp&&(
-                        <div style={{padding:"10px 14px",background:"#080810",borderTop:"1px solid #1a1a2e"}}>
-                          <div style={{fontSize:10,color:"#555",lineHeight:1.65,marginBottom:10,fontStyle:"italic"}}>{def?.description}</div>
-                          <div style={{display:"grid",gridTemplateColumns:"1fr 90px 140px",gap:8,marginBottom:8}}>
-                            <div><label style={S.label}>Notes</label><input style={{...S.input,fontSize:10}} value={ph.notes} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,notes:e.target.value}:p))} placeholder="Notes..."/></div>
-                            <div><label style={S.label}>Initials</label><input style={{...S.input,fontSize:10}} value={ph.initials} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,initials:e.target.value.toUpperCase().slice(0,3)}:p))} placeholder="WT" maxLength={3}/></div>
-                            <div><label style={S.label}>Date Completed</label><input type="date" style={{...S.input,fontSize:10}} value={ph.dateCompleted ? String(ph.dateCompleted).substring(0,10) : ''} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,dateCompleted:fixDateYear(e.target.value)}:p))}/></div>
-                          </div>
-                          <div style={{display:"flex",gap:6}}>
-                            {["not_started","in_progress","done"].map(s=>(
-                              <button key={s} onClick={()=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,status:s,dateCompleted:s==="done"&&!p.dateCompleted?new Date().toISOString().slice(0,10):p.dateCompleted}:p))} style={{flex:1,padding:"4px 0",fontSize:9,fontFamily:"monospace",cursor:"pointer",borderRadius:3,border:`1px solid ${ph.status===s?"#e94560":"#2a2a4a"}`,background:ph.status===s?"#e9456022":"transparent",color:ph.status===s?"#e94560":"#555",letterSpacing:"0.5px"}}>{s.replace("_"," ").toUpperCase()}</button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                };
-                return(
-                  <div>
-                    <div style={{background:"#0a0a15",borderRadius:8,padding:"16px",marginBottom:16,border:"1px solid #1e1e3a"}}>
-                      <div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:8}}>{project.name}</div>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                        <div style={{width:8,height:8,borderRadius:"50%",background:zc,flexShrink:0}}/>
-                        <span style={{fontSize:11,color:"#ccc",fontFamily:"monospace"}}>Week {week} of 8 (Target)</span>
-                        <span style={{fontSize:9,color:daysUntilTarget>0?"#555":"#e74c3c",fontFamily:"monospace"}}>{daysUntilTarget>0?daysUntilTarget+" days left":Math.abs(daysUntilTarget)+" days over"}</span>
-                      </div>
-                      <div style={{fontSize:9,color:"#444",fontFamily:"monospace",marginBottom:10,letterSpacing:"0.5px"}}>Started: {sd}  ·  Target: {td}</div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontFamily:"monospace",color:"#666",marginBottom:4}}>
-                        <span>TRUPLANS STEPS COMPLETE</span><span style={{color:zc,fontWeight:700}}>{doneCt} / 20</span>
-                      </div>
-                      <Pb pct={phasePct} color={zc}/>
-                      <div style={{marginTop:10,fontSize:11,fontWeight:700,fontFamily:"monospace",color:zc}}>{ZL[zone]}</div>
-                    </div>
-                    <div style={{fontSize:10,color:"#e94560",letterSpacing:"1.5px",fontFamily:"monospace",marginBottom:10,fontWeight:700}}>TRUPLANS WORK (8-WEEK SLA)</div>
-                    {iPhases.map(ph=>renderPhaseRow(ph))}
-                    <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 10px",opacity:0.45}}>
-                      <div style={{flex:1,height:1,background:"#2a2a4a"}}/>
-                      <span style={{fontSize:8,color:"#555",fontFamily:"monospace",whiteSpace:"nowrap",letterSpacing:"1.5px"}}>— END OF TRUPLANS CLOCK —</span>
-                      <div style={{flex:1,height:1,background:"#2a2a4a"}}/>
-                    </div>
-                    <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1.5px",fontFamily:"monospace",marginBottom:10,fontWeight:700}}>EXTERNAL WAITING (CITY-CONTROLLED)</div>
-                    {ePhases.map(ph=>renderPhaseRow(ph))}
-                  </div>
-                );
-              })()}
-
-              {/* DESIGN SCOPE */}
-              {ctab==="design scope"&&<div>
-                <ST>TruPlans Design Deliverables (Items 0001–0009)</ST>
-                {ctr.designScope.map(item=>(
-                  <div key={item.id} onClick={()=>item.included&&tog("designScope",item.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:4,marginBottom:4,background:item.included?"#0d0d1a":"#080810",cursor:item.included?"pointer":"default",opacity:item.included?1:0.35}}>
-                    <div style={{width:18,height:18,borderRadius:3,border:`1.5px solid ${item.status==="Completed"?"#27ae60":item.status==="In Progress"?"#3498db":"#333"}`,background:item.status==="Completed"?"#27ae6033":item.status==="In Progress"?"#3498db22":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      {item.status==="Completed"&&<span style={{fontSize:10,color:"#27ae60"}}>✓</span>}
-                      {item.status==="In Progress"&&<span style={{fontSize:8,color:"#3498db"}}>●</span>}
-                    </div>
-                    <span style={{fontSize:10,color:"#e94560",minWidth:36,fontFamily:"monospace"}}>{item.id}</span>
-                    <span style={{flex:1,fontSize:11,color:item.included?"#ccc":"#444"}}>{item.label}</span>
-                    <Sb status={item.included?item.status:"N/A"}/>
-                  </div>
-                ))}
-                <div style={{fontSize:10,color:"#444",marginTop:8,fontFamily:"monospace"}}>Click to cycle: Not Started → In Progress → Completed</div>
-              </div>}
-
-              {/* CONSTRUCTION SCOPE */}
-              {ctab==="construction scope"&&<div>
-                <ST>CALOFT Construction Scope (Items 0100–0759)</ST>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-                  {ctr.constructionScope.map(item=>(
-                    <div key={item.id} onClick={()=>item.included&&tog("constructionScope",item.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:4,background:item.included?"#0d0d1a":"#080810",cursor:item.included?"pointer":"default",opacity:item.included?1:0.3}}>
-                      <div style={{width:14,height:14,borderRadius:2,border:`1.5px solid ${item.status==="Completed"?"#27ae60":"#333"}`,background:item.status==="Completed"?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        {item.status==="Completed"&&<span style={{fontSize:9,color:"#27ae60"}}>✓</span>}
-                      </div>
-                      <span style={{fontSize:9,color:"#555",minWidth:32,fontFamily:"monospace"}}>{item.id}</span>
-                      <span style={{fontSize:10,color:item.included?"#bbb":"#333",flex:1}}>{item.label}</span>
-                      {!item.included&&<span style={{fontSize:9,color:"#333",fontFamily:"monospace"}}>N/I</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>}
-
-              {/* PAYMENTS */}
-              {ctab==="payments"&&<div>
-                <ST>Payment Milestone Tracker</ST>
-                <div style={{marginBottom:12,fontSize:10,color:"#f0a842",padding:"8px 12px",background:"#1a0d00",borderRadius:4,borderLeft:"3px solid #f0a842",fontFamily:"monospace"}}>
-                  ⚠ Payments are milestone-based, NOT trade-cost based. Late = 3%/week penalty + possible project suspension.
-                </div>
-                {ctr.paymentMilestones.map((m,i)=>(
-                  <div key={m.id} onClick={()=>togPay(i)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:6,marginBottom:6,background:m.paid?"#1a3d2b":"#0d0d1a",border:`1px solid ${m.paid?"#27ae6033":"#1e1e3a"}`,cursor:"pointer"}}>
-                    <div style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${m.paid?"#27ae60":"#333"}`,background:m.paid?"#27ae60":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:"#fff",fontWeight:700}}>{m.paid?"✓":m.id}</div>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:11,color:m.paid?"#52d68a":"#ccc"}}>{m.label}</div>
-                      {m.paid&&m.paidDate&&<div style={{fontSize:9,color:"#52d68a55",marginTop:1,fontFamily:"monospace"}}>Paid {m.paidDate}</div>}
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color:m.paid?"#52d68a":"#f0a842",fontFamily:"monospace"}}>{fmt$(m.amount)}</div>
-                  </div>
-                ))}
-                <div style={{display:"flex",justifyContent:"space-between",padding:"12px",background:"#0a0a15",borderRadius:6,marginTop:8}}>
-                  <span style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>PAID / TOTAL</span>
-                  <span style={{fontSize:14,fontWeight:700,color:"#52d68a",fontFamily:"monospace"}}>{fmt$(paid)} / {fmt$(ctr.totalAmount)}</span>
-                </div>
-              </div>}
-
-              {/* HOMEOWNER OBLIGATIONS */}
-              {ctab==="homeowner"&&<div>
-                <ST>Homeowner Obligations Checklist</ST>
-                <div style={{marginBottom:12,fontSize:10,color:"#3498db",padding:"8px 12px",background:"#0a0f1a",borderRadius:4,borderLeft:"3px solid #3498db",fontFamily:"monospace"}}>
-                  Track these to prevent delays. Missing items = your deliverables get blocked.
-                </div>
-                {ctr.homeownerObligations.map(o=>(
-                  <div key={o.id} onClick={()=>togHO(o.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:4,marginBottom:5,background:o.done?"#1a3d2b":"#0d0d1a",cursor:"pointer",border:`1px solid ${o.done?"#27ae6033":"#1e1e3a"}`}}>
-                    <div style={{width:18,height:18,borderRadius:3,border:`1.5px solid ${o.done?"#27ae60":"#444"}`,background:o.done?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{o.done&&<span style={{fontSize:11,color:"#27ae60"}}>✓</span>}</div>
-                    <span style={{fontSize:11,color:o.done?"#52d68a":"#ccc"}}>{o.label}</span>
-                  </div>
-                ))}
-              </div>}
-
-              {/* HIDDEN CONDITIONS */}
-              {ctab==="hidden conditions"&&<div>
-                <ST color="#e74c3c">Hidden Condition Risk Flags (§4.0 / §4.1)</ST>
-                <div style={{marginBottom:12,fontSize:10,color:"#e74c3c",padding:"8px 12px",background:"#1a0808",borderRadius:4,borderLeft:"3px solid #e74c3c",fontFamily:"monospace"}}>
-                  Per §4.0–4.1: hidden conditions = additional cost to homeowner. Flag any that arise during design or construction.
-                </div>
-                {ctr.hiddenConditionFlags.map(h=>(
-                  <div key={h.id} onClick={()=>togHC(h.id)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:4,marginBottom:5,background:h.flagged?"#2d0d0d":"#0d0d1a",cursor:"pointer",border:`1px solid ${h.flagged?"#e74c3c55":"#1e1e3a"}`}}>
-                    <div style={{width:18,height:18,borderRadius:3,border:`1.5px solid ${h.flagged?"#e74c3c":"#444"}`,background:h.flagged?"#e74c3c33":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>{h.flagged&&<span style={{fontSize:11,color:"#e74c3c"}}>!</span>}</div>
-                    <span style={{fontSize:11,color:h.flagged?"#e74c3c":"#aaa",flex:1}}>{h.label}</span>
-                    {h.flagged&&<span style={{fontSize:9,color:"#e74c3c",fontFamily:"monospace",fontWeight:700}}>FLAGGED</span>}
-                  </div>
-                ))}
-              </div>}
-
-              {/* CHANGE ORDERS */}
-              {ctab==="change orders"&&<div>
-                <ST color="#9b59b6">Change Order Log (§3.3 / §3.4)</ST>
-                <div style={{marginBottom:12,fontSize:10,color:"#9b59b6",padding:"8px 12px",background:"#0f0a1a",borderRadius:4,borderLeft:"3px solid #9b59b6",fontFamily:"monospace"}}>
-                  Per CA B&P 7159: verbal changes are still billable. Document ALL changes here before work begins.
-                </div>
-                {ctr.changeOrders.length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No change orders logged.</div>}
-                {ctr.changeOrders.map(co=>(
-                  <div key={co.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"12px",marginBottom:8}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <div><div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace"}}>{co.id} · {co.date}</div><div style={{fontSize:11,color:"#ccc",marginTop:3}}>{co.description}</div></div>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:"#f0a842",fontFamily:"monospace"}}>{co.amount>=0?"+":""}{fmt$(co.amount)}</span><Sb status={co.status}/></div>
-                    </div>
-                  </div>
-                ))}
-                <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
-                  <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW CHANGE ORDER</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr 100px",gap:8,alignItems:"end"}}>
-                    <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newCO.date ? String(newCO.date).substring(0,10) : ''} onChange={e=>setNewCO({...newCO,date:fixDateYear(e.target.value)})}/></div>
-                    <div><label style={S.label}>Description</label><input style={S.input} value={newCO.description} onChange={e=>setNewCO({...newCO,description:e.target.value})} placeholder="Scope change..."/></div>
-                    <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newCO.amount} onChange={e=>setNewCO({...newCO,amount:e.target.value})} placeholder="0"/></div>
-                    <button style={S.btn} onClick={addCO}>Add</button>
-                  </div>
-                </div>
-              </div>}
-
-              {/* ADDENDUMS */}
-              {ctab==="addendums"&&<div>
-                <ST color="#d4ac0d">Addendums</ST>
-                <div style={{fontSize:10,color:"#888",marginBottom:14,padding:"8px 12px",background:"#0f0d00",borderRadius:4,borderLeft:"3px solid #d4ac0d",fontFamily:"monospace"}}>
-                  Addendums modify the original contract scope or value. Only Signed or Approved addendums are included in the Contract Total.
-                </div>
-                {(ctr.addendums||[]).length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No addendums yet.</div>}
-                {(ctr.addendums||[]).map(a=>(
-                  <div key={a.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginBottom:10}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                      <div style={{flex:1,marginRight:12}}>
-                        <input value={a.title} onChange={e=>updateAddendum(a.id,'title',e.target.value)} style={{...S.input,fontSize:12,fontWeight:700,marginBottom:6}} placeholder="Addendum title..."/>
-                        <textarea value={a.description} onChange={e=>updateAddendum(a.id,'description',e.target.value)} style={{...S.input,fontSize:11,height:60,resize:'vertical'}} placeholder="Scope change description..."/>
-                      </div>
-                      <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end",flexShrink:0}}>
-                        <button onClick={()=>cycleAddStatus(a.id)} style={{background:ADD_COLORS[a.status]+'22',color:ADD_COLORS[a.status],border:`1px solid ${ADD_COLORS[a.status]}66`,borderRadius:4,padding:'3px 10px',cursor:'pointer',fontSize:9,fontFamily:'monospace',fontWeight:700,whiteSpace:'nowrap'}}>{a.status}</button>
-                        <button onClick={()=>removeAddendum(a.id)} style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:4,padding:"2px 8px",cursor:"pointer",fontSize:11}}>✕</button>
-                      </div>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:8}}>
-                      <div><label style={S.label}>Amount ($)</label><input type="number" value={a.amount} onChange={e=>updateAddendum(a.id,'amount',parseFloat(e.target.value)||0)} style={S.input} placeholder="0"/></div>
-                      <div><label style={S.label}>Date</label><input type="date" value={a.date?String(a.date).substring(0,10):''} onChange={e=>updateAddendum(a.id,'date',fixDateYear(e.target.value))} style={S.input}/></div>
-                      <div><label style={S.label}>Notes</label><input value={a.notes} onChange={e=>updateAddendum(a.id,'notes',e.target.value)} style={S.input} placeholder="Internal notes..."/></div>
-                    </div>
-                  </div>
-                ))}
-                <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
-                  <div style={{fontSize:10,color:"#d4ac0d",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW ADDENDUM</div>
-                  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
-                    <div><label style={S.label}>Title</label><input style={S.input} value={newAdd.title} onChange={e=>setNewAdd({...newAdd,title:e.target.value})} placeholder="Addendum #1 — ..."/></div>
-                    <div><label style={S.label}>Amount ($)</label><input type="number" style={S.input} value={newAdd.amount} onChange={e=>setNewAdd({...newAdd,amount:e.target.value})} placeholder="0"/></div>
-                    <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newAdd.date?String(newAdd.date).substring(0,10):''} onChange={e=>setNewAdd({...newAdd,date:fixDateYear(e.target.value)})}/></div>
-                  </div>
-                  <div style={{marginBottom:8}}><label style={S.label}>Description</label><input style={S.input} value={newAdd.description} onChange={e=>setNewAdd({...newAdd,description:e.target.value})} placeholder="Scope change description..."/></div>
-                  <button style={S.btn} onClick={addAddendum}>+ Add Addendum</button>
-                </div>
-              </div>}
-
-              {/* AI ANALYSIS */}
-              {ctab==="ai analysis"&&<div>
-                <ST>AI Contract Analysis</ST>
-                {!ai?(
-                  <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:8,padding:"20px"}}>
-                    <div style={{fontSize:11,color:"#888",marginBottom:12,lineHeight:1.6}}>Paste the contract text below. The AI will extract key obligations, risk flags, scope summary, payment breakdown, and action items tailored to TruPlans' role as the design firm.</div>
-                    <textarea style={{...S.input,height:140,resize:"vertical",marginBottom:12,fontSize:11}} placeholder="Paste contract text here..." value={pdfTxt} onChange={e=>setPdfTxt(e.target.value)}/>
-                    <button style={{...S.btn,opacity:analyzing?0.6:1}} onClick={analyze} disabled={analyzing}>{analyzing?"⏳ Analyzing...":"🤖 Analyze Contract"}</button>
-                  </div>
-                ):(
-                  <div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                      <div style={{fontSize:10,color:"#555",fontFamily:"monospace"}}>Generated: {ai.generatedAt||"just now"}</div>
-                      <button style={{...S.ghost,fontSize:10}} onClick={clearAI}>Re-analyze</button>
-                    </div>
-                    {ai.error?<div style={{color:"#e74c3c",fontSize:11}}>{ai.error}</div>:<>
-                      <div style={{background:"#0d0d1a",borderRadius:6,padding:"14px",marginBottom:12,borderLeft:"3px solid #e94560"}}>
-                        <div style={{fontSize:10,color:"#e94560",fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>PROJECT SUMMARY</div>
-                        <div style={{fontSize:11,color:"#ccc",lineHeight:1.6}}>{ai.summary}</div>
-                      </div>
-                      {ai.riskFlags?.length>0&&<div style={{marginBottom:12}}>
-                        <div style={{fontSize:10,color:"#e74c3c",fontFamily:"monospace",letterSpacing:"1px",marginBottom:8}}>RISK FLAGS</div>
-                        {ai.riskFlags.map((r,i)=>(
-                          <div key={i} style={{display:"flex",gap:10,padding:"8px 12px",borderRadius:4,marginBottom:5,background:r.level==="HIGH"?"#200a0a":r.level==="MEDIUM"?"#1a1000":"#0a0f1a",borderLeft:`3px solid ${r.level==="HIGH"?"#e74c3c":r.level==="MEDIUM"?"#f39c12":"#3498db"}`}}>
-                            <span style={{fontSize:9,fontWeight:700,color:r.level==="HIGH"?"#e74c3c":r.level==="MEDIUM"?"#f39c12":"#3498db",minWidth:52,fontFamily:"monospace",marginTop:1}}>{r.level}</span>
-                            <span style={{fontSize:11,color:"#ccc",lineHeight:1.5}}>{r.text}</span>
-                          </div>
-                        ))}
-                      </div>}
-                      {ai.actionItems?.length>0&&<div style={{marginBottom:12}}>
-                        <div style={{fontSize:10,color:"#27ae60",fontFamily:"monospace",letterSpacing:"1px",marginBottom:8}}>ACTION ITEMS</div>
-                        {ai.actionItems.map((item,i)=>(
-                          <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",borderRadius:4,marginBottom:4,background:"#0d0d1a"}}>
-                            <div style={{width:16,height:16,borderRadius:"50%",border:`1.5px solid ${item.done?"#27ae60":"#333"}`,background:item.done?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,marginTop:1}}>{item.done&&"✓"}</div>
-                            <span style={{fontSize:11,color:item.done?"#52d68a":"#ccc",lineHeight:1.5,textDecoration:item.done?"line-through":"none"}}>{item.text}</span>
-                          </div>
-                        ))}
-                      </div>}
-                      {[["Scope Summary",ai.scopeSummary,"#27ae60"],["TruPlans Obligations",ai.obligations,"#3498db"],["Payment Summary",ai.paymentSummary,"#f0a842"]].map(([title,content,color])=>content&&(
-                        <div key={title} style={{background:"#0d0d1a",borderRadius:6,padding:"12px",marginBottom:10,borderLeft:`3px solid ${color}`}}>
-                          <div style={{fontSize:10,color,fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>{title.toUpperCase()}</div>
-                          <div style={{fontSize:11,color:"#bbb",lineHeight:1.7,whiteSpace:"pre-line"}}>{content}</div>
-                        </div>
-                      ))}
-                    </>}
-                  </div>
-                )}
-              </div>}
+              {!inline&&tabContentEl}
             </>}
           </>
         )}
     </div>
   );
-  if(inline) return moduleBody;
+  if(inline) return(
+    <>
+      {moduleBody}
+      {inlineOpen&&(
+        <div style={S.ov} onClick={()=>setInlineOpen(false)}>
+          <div style={{...S.mod,maxWidth:860,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div style={{fontSize:10,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace",fontWeight:700}}>{ctab.toUpperCase()}</div>
+              <button style={{...S.ghost,fontSize:10,color:"#555",borderColor:"#333"}} onClick={()=>setInlineOpen(false)}>✕</button>
+            </div>
+            {tabContentEl}
+          </div>
+        </div>
+      )}
+    </>
+  );
   return <div style={S.ov} onClick={onClose}>{moduleBody}</div>;
 }
 
