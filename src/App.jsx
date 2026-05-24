@@ -2081,13 +2081,15 @@ ${pdfTxt.slice(0,8000)}`}]});
     <>
       {moduleBody}
       {inlineOpen&&(
-        <div style={S.ov} onClick={()=>setInlineOpen(false)}>
-          <div style={{...S.mod,maxWidth:860,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <div style={{fontSize:10,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace",fontWeight:700}}>{ctab.toUpperCase()}</div>
-              <button style={{...S.ghost,fontSize:10,color:"#555",borderColor:"#333"}} onClick={()=>setInlineOpen(false)}>✕</button>
+        <div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+          <div style={{pointerEvents:"auto",background:"#fff",borderRadius:12,boxShadow:"0 8px 48px rgba(0,0,0,0.22)",border:"1px solid #dde1e7",width:860,maxWidth:"92vw",maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{background:"#f4f6f8",borderBottom:"1px solid #dde1e7",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e",fontFamily:"monospace",letterSpacing:"1px",textTransform:"capitalize"}}>{ctab}</div>
+              <button onClick={()=>setInlineOpen(false)} style={{background:"none",border:"1px solid #ccc",borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
             </div>
-            {tabContentEl}
+            <div style={{padding:24,overflowY:"auto",flex:1}}>
+              {tabContentEl}
+            </div>
           </div>
         </div>
       )}
