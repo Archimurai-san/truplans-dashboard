@@ -1685,9 +1685,9 @@ function AssignModal({project,projects,setProjects,teamMembers,onClose}){
 }
 
 function ContractModule({project,onClose,onUpdate,inline=false}){
-  const [ci,setCi]=useState(project.contracts.length>0?0:null);
+  const [ci,setCi]=useState(0);
   const [ctab,setCtab]=useState("overview");
-  const [ctrs,setCtrs]=useState(project.contracts);
+  const [ctrs,setCtrs]=useState(project.contracts.length>0?project.contracts:[{...CONTRACT_TEMPLATE,id:Date.now()}]);
   const [analyzing,setAnalyzing]=useState(false);
   const [pdfTxt,setPdfTxt]=useState("");
   const [aiRes,setAiRes]=useState(null);
