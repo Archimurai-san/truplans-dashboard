@@ -2959,6 +2959,11 @@ export default function App(){
   const [fTP,setFTP]=useState("All");
   const [fTS,setFTS]=useState("All");
   const [fTQ,setFTQ]=useState("");
+  const visibleProjects=useMemo(()=>
+    userRole==='designer'&&userDesignerName
+      ?projects.filter(p=>p.designer===userDesignerName)
+      :projects,
+  [projects,userRole,userDesignerName]);
   const generatedTasks=useMemo(()=>generateTasksFromProjects(visibleProjects),[visibleProjects]);
   const activeProjectIds=useMemo(()=>new Set(projects.map(p=>String(p.id))),[projects]);
   const filteredTasks=useMemo(()=>{
@@ -3015,11 +3020,6 @@ export default function App(){
   const DS=["All",...Object.keys(teamMembers)];
   const SS=["All","In Progress","Completed","On Hold","Not Started"];
   const TS=["All","Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-  const visibleProjects=useMemo(()=>
-    userRole==='designer'&&userDesignerName
-      ?projects.filter(p=>p.designer===userDesignerName)
-      :projects,
-  [projects,userRole,userDesignerName]);
   const filtered=useMemo(()=>visibleProjects.filter(p=>{
     if(fD!=="All"&&p.designer!==fD) return false;
     if(fS!=="All"&&p.status!==fS) return false;
