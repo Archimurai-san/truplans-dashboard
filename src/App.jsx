@@ -1229,7 +1229,7 @@ function NotificationPanel({prefs,history,onClose,onUpdatePrefs}){
 }
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
   const [renaming,setRenaming]=useState(false);
   const [renameVal,setRenameVal]=useState(project.name);
@@ -1293,7 +1293,6 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <button onClick={onDelete} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #e74c3c',color:'#e74c3c',background:'none'}}>Delete</button>
           <button onClick={onWorkflow} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Workflow</button>
           <button onClick={onAssign} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Assign Team</button>
-          <button onClick={onContracts} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Contracts</button>
           <button onClick={onBack} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-body)',background:'none',fontWeight:700}}>✕ Close</button>
         </div>
       </div>
@@ -1341,7 +1340,9 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           )}
         </div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'38% 1fr',gap:20,marginBottom:20,alignItems:'start'}}>
+      <div style={{display:'flex',gap:20,alignItems:'flex-start'}}>
+        {/* LEFT COLUMN */}
+        <div style={{flex:'0 0 58%',minWidth:0,display:'flex',flexDirection:'column',gap:16}}>
         <div style={S.card}>
           <ST>Client Info</ST>
           <InfoRow label="Client" value={project.client}/>
@@ -1381,8 +1382,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             </div>
           </div>
         </div>
-      </div>
-      <div style={{...S.card,marginBottom:20}}>
+      <div style={S.card}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:8}}>
           <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace'}}>Payment Milestones</div>
           <div style={{fontSize:11,fontFamily:'monospace',display:'flex',gap:16,flexWrap:'wrap'}}>
@@ -1423,7 +1423,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <button onClick={()=>onPickPDF(project)} style={{...S.ghost,padding:'8px 16px',fontSize:11}}>{contractPath?'↺ Replace PDF':'+ Attach Contract PDF'}</button>
         </div>
       </div>
-      <div style={{...S.card,marginTop:20}}>
+      <div style={S.card}>
         <ST>Scope of Work</ST>
         {(project.scopeOfWork||[]).length>0?(
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
@@ -1438,7 +1438,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No scope of work — analyse a contract to populate.</div>
         )}
       </div>
-      <div style={{...S.card,marginTop:20}}>
+      <div style={S.card}>
         <ST>Emails</ST>
         {(() => {
           const related = threads.filter(t => matchProject(t.from, t.subject)?.split(' · ')[0] === project.id);
@@ -1459,6 +1459,22 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             </div>
           );
         })()}
+        </div>
+        </div>{/* end left column */}
+        {/* RIGHT COLUMN */}
+        <div style={{flex:1,minWidth:0}}>
+          {(project.contracts||[]).length>0
+            ?<ContractModule project={project} onUpdate={updates=>onUpdateFields?.(project.id,updates)} inline={true}/>
+            :<div style={S.card}>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:12}}>Contract</div>
+              <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',marginBottom:16}}>No contract attached — analyse a PDF to populate.</div>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <button onClick={onAnalyse} style={{...S.btn,fontSize:10,padding:'6px 14px'}}>🔍 Analyse Contract</button>
+                <button onClick={onContracts} style={{...S.ghost,fontSize:10,padding:'6px 14px'}}>+ Add Manually</button>
+              </div>
+            </div>
+          }
+        </div>
       </div>
     </div>
   );
@@ -1670,7 +1686,7 @@ function AssignModal({project,projects,setProjects,teamMembers,onClose}){
   );
 }
 
-function ContractModule({project,onClose,onUpdate}){
+function ContractModule({project,onClose,onUpdate,inline=false}){
   const [ci,setCi]=useState(project.contracts.length>0?0:null);
   const [ctab,setCtab]=useState("overview");
   const [ctrs,setCtrs]=useState(project.contracts);
@@ -1732,18 +1748,19 @@ ${pdfTxt.slice(0,8000)}`}]});
   const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","addendums","ai analysis"];
   const ai=aiRes||(ctr?.aiAnalysis);
 
-  return(
-    <div style={S.ov} onClick={onClose}>
-      <div style={{...S.mod}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-          <div>
-            <div style={{fontSize:10,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace"}}>CONTRACT MODULE</div>
-            <div style={{fontSize:18,fontWeight:700,color:"#f0f0f0",marginTop:2}}>{project.name}</div>
-            <div style={{fontSize:11,color:"#888"}}>{project.client} · {project.city}</div>
-          </div>
+  const moduleBody=(
+    <div style={inline?{}:{...S.mod}} onClick={inline?undefined:e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:inline?10:20}}>
+          {inline
+            ?<div style={{fontSize:9,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace",fontWeight:700}}>CONTRACT</div>
+            :<div>
+              <div style={{fontSize:10,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace"}}>CONTRACT MODULE</div>
+              <div style={{fontSize:18,fontWeight:700,color:"#f0f0f0",marginTop:2}}>{project.name}</div>
+              <div style={{fontSize:11,color:"#888"}}>{project.client} · {project.city}</div>
+            </div>}
           <div style={{display:"flex",gap:8}}>
             <button style={{...S.ghost,fontSize:10}} onClick={addContract}>+ Add Contract</button>
-            <button style={{...S.ghost,fontSize:10,color:"#555",borderColor:"#333"}} onClick={onClose}>✕</button>
+            {!inline&&<button style={{...S.ghost,fontSize:10,color:"#555",borderColor:"#333"}} onClick={onClose}>✕</button>}
           </div>
         </div>
 
@@ -2055,9 +2072,10 @@ ${pdfTxt.slice(0,8000)}`}]});
             </>}
           </>
         )}
-      </div>
     </div>
   );
+  if(inline) return moduleBody;
+  return <div style={S.ov} onClick={onClose}>{moduleBody}</div>;
 }
 
 function getRevenueData(projects,paymentData){
@@ -2998,6 +3016,7 @@ export default function App(){
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));triggerSave();};
   const updateProjectName=(id,name)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
+  const updateProjectFields=(id,updates)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,...updates}:p));};
   const togglePhaseFromDetail=(projectId,stepId)=>{
     const today=new Date().toISOString().slice(0,10);
     setProjects(prev=>prev.map(p=>{
@@ -3720,6 +3739,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onAssign={()=>setAssignP(detailProject)}
             onContracts={()=>setCtrP(detailProject)}
             onTogglePhase={togglePhaseFromDetail}
+            onAnalyse={()=>setAnalyseModal(detailProject)}
+            onUpdateFields={updateProjectFields}
             threads={gmailThreads}
             onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />
