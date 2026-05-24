@@ -139,6 +139,23 @@ app.post('/api/claude', async (req, res) => {
   }
 });
 
+// --- Config & Auth ---
+
+app.get('/api/config', (req, res) => {
+  const config = (() => { try { return JSON.parse(readFileSync(join(__dir, 'config.json'), 'utf8')); } catch { return {}; } })();
+  res.json({ supabaseUrl: config.supabaseUrl || '', supabaseAnonKey: config.supabaseAnonKey || '' });
+});
+
+app.get('/api/auth/callback', (req, res) => {
+  // Supabase redirects here after Google OAuth with tokens in the URL fragment.
+  // Fragment is not sent to the server, so we serve a small page that bounces
+  // the browser back to the frontend app with the fragment intact.
+  res.send(`<!DOCTYPE html><html><body><script>
+    var dest = 'http://localhost:5173' + window.location.hash;
+    window.location.replace(dest);
+  </script></body></html>`);
+});
+
 // --- Supabase ---
 
 app.get('/api/supabase/projects', async (req, res) => {
