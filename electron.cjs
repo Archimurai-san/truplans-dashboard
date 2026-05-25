@@ -36,7 +36,7 @@ let serverProcess = null
 
 function startServer() {
   const serverPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'server.js')
+    ? path.join(process.resourcesPath, 'server-bundle.mjs')
     : path.join(__dirname, 'server.js')
 
   serverProcess = spawn(process.execPath, [serverPath], {
@@ -67,6 +67,7 @@ function createWindow() {
     autoHideMenuBar: true,
   })
   mainWindow.maximize()
+  mainWindow.webContents.openDevTools()
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL) => {
     if (validatedURL && validatedURL.startsWith('http://localhost:3001')) {
