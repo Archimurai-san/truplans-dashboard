@@ -67,6 +67,14 @@ function createWindow() {
     autoHideMenuBar: true,
   })
   mainWindow.maximize()
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL) => {
+    if (validatedURL && validatedURL.startsWith('http://localhost:3001')) {
+      console.log('[window] Server not ready, retrying in 1s...')
+      setTimeout(() => mainWindow && mainWindow.loadURL('http://localhost:3001'), 1000)
+    }
+  })
+
   mainWindow.loadURL('http://localhost:3001')
   mainWindow.on('closed', () => { mainWindow = null })
 }
@@ -314,7 +322,7 @@ app.whenReady().then(() => {
     })
   })
   startServer()
-  setTimeout(createWindow, 1500)
+  setTimeout(createWindow, 3000)
   if (app.isPackaged) {
     setTimeout(() => {
       autoUpdater.checkForUpdates().catch(err => console.error('[updater]', err.message))
