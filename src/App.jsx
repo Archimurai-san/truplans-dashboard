@@ -947,7 +947,7 @@ Set contractFormat: "CALOFT"
 - estimatedConstructionTime: e.g. "3-4 weeks"
 - paymentMilestones: all 8 milestones from PAYMENT SCHEDULE — code=1-8, description=milestone name, amount=dollar amount, trigger=payment trigger text:
   1=DEPOSIT, 2=HOUSE SCANNING, 3=DESIGN, 4=MATERIAL DEPOSITS, 5=PREP & DEMO, 6=ROUGH INSPECTION, 7=DRYWALL SCREW, 8=FINAL INSPECTION
-- scopeOfWork: scan every line item in the contract. For each item where the included indicator is Y, YES, or a checked/green box, extract { category, description }. Use the section heading as category (e.g. "Structural", "Electrical", "Plumbing", "Mechanical", "Framing", "Insulation", "Drywall", "Flooring", "Painting", "Cabinetry", "Countertops", "Roofing", "Windows & Doors", "HVAC", "Other"). Omit items where the indicator is N, NO, or unchecked.
+- scopeOfWork: scan every line item in the contract. Extract ALL items — both included and excluded — as { category, description, included: "Y" or "N" }. Set included="Y" for items marked Y, YES, or checked/green box; included="N" for items marked N, NO, or unchecked. Use the section heading as category (e.g. "Structural", "Electrical", "Plumbing", "Mechanical", "Framing", "Insulation", "Drywall", "Flooring", "Painting", "Cabinetry", "Countertops", "Roofing", "Windows & Doors", "HVAC", "Other").
 - includedItems: [], excludedItems: []
 - signatureDate, signedByName from signature page
 
@@ -967,15 +967,15 @@ Set contractFormat: "TRUADDITIONS"
 - approxCompletionDate: approximate completion date if stated
 - estimatedConstructionTime: e.g. "3-4 weeks"
 - paymentMilestones: all milestones from PAYMENT SCHEDULE — code=milestone number, description=milestone name, amount=dollar amount, trigger=payment trigger text
-- scopeOfWork: scan every line item in the contract. For each item where the included indicator is Y, YES, or a checked/green box, extract { category, description }. Use the section heading as category. Omit items where the indicator is N, NO, or unchecked.
+- scopeOfWork: scan every line item in the contract. Extract ALL items — both included and excluded — as { category, description, included: "Y" or "N" }. Set included="Y" for items marked Y, YES, or checked/green box; included="N" for items marked N, NO, or unchecked. Use the section heading as category.
 - includedItems: [], excludedItems: []
 - signatureDate, signedByName from signature page
 
 === ALL FORMATS — SCOPE OF WORK (FORMAT 1 additional instruction) ===
-For FORMAT 1 (TruPlans Work Order): also extract scopeOfWork by scanning all service line items across pages 3–6. For each line item that is included in the scope (marked, listed, or described as part of the work), extract { category, description } where category matches the page section (e.g. "Architectural", "Civil", "Structural", "Landscape").
+For FORMAT 1 (TruPlans Work Order): also extract scopeOfWork by scanning all service line items across pages 3–6. Extract ALL items as { category, description, included: "Y" or "N" } where category matches the page section (e.g. "Architectural", "Civil", "Structural", "Landscape"). Set included="Y" for items in scope, included="N" for items out of scope.
 
 Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if not applicable to the detected format:
-{"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":""}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
+{"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 function AnalyseModal({project,onClose,onSave}){
   const [phase,setPhase]=useState('pick');
@@ -1149,10 +1149,10 @@ function AnalyseModal({project,onClose,onSave}){
                 ))}
                 {(edited.scopeOfWork||[]).length>0&&<div style={{marginBottom:7}}>
                   <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:6}}>Scope of Work ({edited.scopeOfWork.length} items)</div>
-                  {Object.entries((edited.scopeOfWork||[]).reduce((acc,item)=>{const cat=item.category||'Other';(acc[cat]=acc[cat]||[]).push(item.description);return acc},{})).map(([cat,descs])=>(
+                  {Object.entries((edited.scopeOfWork||[]).reduce((acc,item)=>{const cat=item.category||'Other';(acc[cat]=acc[cat]||[]).push({description:item.description,included:item.included});return acc},{})).map(([cat,items])=>(
                     <div key={cat} style={{marginBottom:8}}>
                       <div style={{fontSize:9,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:3}}>{cat}</div>
-                      {descs.map((d,i)=><div key={i} style={{fontSize:10,color:'var(--status-done-text)',display:'flex',gap:5,marginBottom:2}}><span>✓</span><span style={{color:'var(--text-body)'}}>{d}</span></div>)}
+                      {items.map((it,i)=><div key={i} style={{fontSize:10,display:'flex',gap:5,marginBottom:2}}><span style={{color:it.included==='N'?'var(--status-overdue-text)':'var(--status-done-text)',flexShrink:0}}>{it.included==='N'?'✗':'✓'}</span><span style={{color:'var(--text-body)'}}>{it.description}</span></div>)}
                     </div>
                   ))}
                 </div>}
@@ -1440,10 +1440,10 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <ST>Scope of Work</ST>
           {(project.scopeOfWork||[]).length>0?(
             <div style={{display:'flex',flexDirection:'column',gap:14}}>
-              {Object.entries((project.scopeOfWork||[]).reduce((acc,item)=>{const cat=item.category||'Other';(acc[cat]=acc[cat]||[]).push(item.description);return acc},{})).map(([cat,descs])=>(
+              {Object.entries((project.scopeOfWork||[]).reduce((acc,item)=>{const cat=item.category||'Other';(acc[cat]=acc[cat]||[]).push({description:item.description,included:item.included});return acc},{})).map(([cat,items])=>(
                 <div key={cat}>
                   <div style={{fontSize:9,fontWeight:700,color:'var(--accent)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:5}}>{cat}</div>
-                  {descs.map((d,i)=><div key={i} style={{display:'flex',gap:7,alignItems:'flex-start',marginBottom:3}}><span style={{color:'var(--status-done-text)',fontSize:11,fontWeight:700,flexShrink:0}}>✓</span><span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.4}}>{d}</span></div>)}
+                  {items.map((it,i)=><div key={i} style={{display:'flex',gap:7,alignItems:'flex-start',marginBottom:3}}><span style={{color:it.included==='N'?'var(--status-overdue-text)':'var(--status-done-text)',fontSize:11,fontWeight:700,flexShrink:0}}>{it.included==='N'?'✗':'✓'}</span><span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.4}}>{it.description}</span></div>)}
                 </div>
               ))}
             </div>
