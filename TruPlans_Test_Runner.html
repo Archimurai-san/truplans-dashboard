@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TruPlans Dashboard — Test Runner v1.0</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f4f6f9; color: #212121; padding: 24px; }
+  .header { background: #1e3a5f; color: white; padding: 24px 32px; border-radius: 10px; margin-bottom: 24px; }
+  .header h1 { font-size: 24px; margin-bottom: 4px; }
+  .header p { font-size: 14px; opacity: 0.8; }
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .summary-card { background: white; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #e0e0e0; }
+  .summary-card .num { font-size: 36px; font-weight: bold; }
+  .summary-card .lbl { font-size: 12px; color: #757575; margin-top: 4px; }
+  .pass { color: #2e7d32; }
+  .fail { color: #c62828; }
+  .warn { color: #f57f17; }
+  .skip { color: #757575; }
+  .section { background: white; border-radius: 10px; margin-bottom: 16px; overflow: hidden; border: 1px solid #e0e0e0; }
+  .section-header { padding: 14px 20px; background: #1e3a5f; color: white; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .section-header h2 { font-size: 15px; flex: 1; }
+  .section-header .badge { font-size: 12px; background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 10px; }
+  .test-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 20px; border-bottom: 1px solid #f0f0f0; }
+  .test-row:last-child { border-bottom: none; }
+  .test-row:hover { background: #f8fafc; }
+  .status-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; width: 24px; text-align: center; }
+  .test-info { flex: 1; }
+  .test-name { font-size: 13px; font-weight: 500; }
+  .test-detail { font-size: 12px; color: #616161; margin-top: 2px; }
+  .test-result { font-size: 12px; font-weight: 500; }
+  .manual-badge { font-size: 10px; background: #fff3e0; color: #e65100; padding: 2px 8px; border-radius: 8px; margin-left: 8px; }
+  .run-btn { background: #1565c0; color: white; border: none; padding: 12px 32px; border-radius: 6px; font-size: 15px; font-weight: 500; cursor: pointer; margin-bottom: 24px; width: 100%; }
+  .run-btn:hover { background: #1976d2; }
+  .print-btn { background: #2e7d32; color: white; border: none; padding: 10px 24px; border-radius: 6px; font-size: 13px; cursor: pointer; margin-left: 12px; }
+  .footer { text-align: center; font-size: 12px; color: #9e9e9e; margin-top: 24px; }
+  .progress-bar { height: 6px; background: #e0e0e0; border-radius: 3px; margin-bottom: 24px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #2e7d32, #1565c0); border-radius: 3px; transition: width 0.5s; }
+  .timestamp { font-size: 11px; color: #9e9e9e; }
+  .server-warning { background: #fff8e1; border: 1px solid #f9a825; border-radius: 8px; padding: 14px 20px; margin-bottom: 20px; display: none; }
+  .server-warning h3 { color: #e65100; font-size: 14px; margin-bottom: 6px; }
+  .server-warning p { font-size: 13px; color: #5d4037; }
+  code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+  @media print {
+    .run-btn, .print-btn { display: none; }
+    body { padding: 12px; }
+    .section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🧪 TruPlans Dashboard — Automated Test Runner</h1>
+  <p>Version 1.0 — May 2026 — Run this file in Chrome browser to test the dashboard automatically</p>
+</div>
+
+<div class="server-warning" id="serverWarning">
+  <h3>⚠️ Server Not Running — Contract Analyser Will Fail</h3>
+  <p>To enable Contract Analyser testing: open PowerShell → <code>cd C:\TruPlans\truplans-dashboard</code> → <code>npm run server</code></p>
+</div>
+
+<button class="run-btn" onclick="runAllTests()">▶ Run All Automated Tests</button>
+
+<div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+<div class="summary" id="summary">
+  <div class="summary-card"><div class="num pass" id="passCount">—</div><div class="lbl">✅ Passed</div></div>
+  <div class="summary-card"><div class="num fail" id="failCount">—</div><div class="lbl">❌ Failed</div></div>
+  <div class="summary-card"><div class="num warn" id="warnCount">—</div><div class="lbl">⚠️ Warnings</div></div>
+  <div class="summary-card"><div class="num skip" id="skipCount">—</div><div class="lbl">👁️ Manual Check</div></div>
+</div>
+
+<div id="results"></div>
+
+<div class="footer">
+  <span id="runTimestamp"></span>
+  &nbsp;|&nbsp; TruPlans Dashboard Test Runner &nbsp;|&nbsp; Marusic Precision Design LLC
+  &nbsp;|&nbsp; <button class="print-btn" onclick="window.print()">🖨️ Print Report</button>
+</div>
+
+<script>
+const EXPECTED_PROJECTS = ['528','621','624','629','637-W','638','645','651','626','610','637-S','642','634','647','648','TRU-012'];
+const EXPECTED_DESIGNERS = ['Molly','Shirley','Radovan'];
+const SLA_DAYS = 56;
+const WORKFLOW_STEPS = ['5.1','5.2','5.3','5.4','5.5','5.6','5.7','5.8','5.9','5.10','5.11','5.12','5.13','5.14','5.15','5.16','5.17','5.18','5.19','5.20','5.21','5.22','5.23'];
+
+let results = { pass: 0, fail: 0, warn: 0, skip: 0 };
+
+function icon(status) {
+  if (status === 'pass') return '<span class="status-icon pass">✅</span>';
+  if (status === 'fail') return '<span class="status-icon fail">❌</span>';
+  if (status === 'warn') return '<span class="status-icon warn">⚠️</span>';
+  return '<span class="status-icon skip">👁️</span>';
+}
+
+function row(status, name, detail, result) {
+  results[status]++;
+  const manual = status === 'skip' ? '<span class="manual-badge">MANUAL</span>' : '';
+  return `<div class="test-row">
+    ${icon(status)}
+    <div class="test-info">
+      <div class="test-name">${name}${manual}</div>
+      <div class="test-detail">${detail}</div>
+    </div>
+    <div class="test-result ${status}">${result}</div>
+  </div>`;
+}
+
+function section(title, rows, emoji = '🔷') {
+  const pass = (rows.match(/class="status-icon pass"/g)||[]).length;
+  const fail = (rows.match(/class="status-icon fail"/g)||[]).length;
+  const warn = (rows.match(/class="status-icon warn"/g)||[]).length;
+  const skip = (rows.match(/class="status-icon skip"/g)||[]).length;
+  const total = pass + fail + warn + skip;
+  const badgeColor = fail > 0 ? '#c62828' : warn > 0 ? '#f57f17' : '#2e7d32';
+  return `<div class="section">
+    <div class="section-header" style="background:${badgeColor}">
+      <h2>${emoji} ${title}</h2>
+      <span class="badge">${pass}/${total} passed</span>
+      ${fail > 0 ? `<span class="badge" style="background:#b71c1c">${fail} FAILED</span>` : ''}
+    </div>
+    ${rows}
+  </div>`;
+}
+
+async function checkServer() {
+  try {
+    const r = await fetch('http://localhost:3001/health', { signal: AbortSignal.timeout(2000) });
+    return r.ok;
+  } catch { return false; }
+}
+
+function safeDate(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function getWeek(dateStr) {
+  const d = safeDate(dateStr);
+  if (!d) return null;
+  const today = new Date();
+  const days = Math.floor((today - d) / 86400000);
+  return Math.ceil(days / 7);
+}
+
+async function runAllTests() {
+  results = { pass: 0, fail: 0, warn: 0, skip: 0 };
+  document.getElementById('results').innerHTML = '<p style="padding:20px;color:#616161">Running tests...</p>';
+  document.getElementById('progressFill').style.width = '10%';
+
+  const serverOk = await checkServer();
+  if (!serverOk) document.getElementById('serverWarning').style.display = 'block';
+  else document.getElementById('serverWarning').style.display = 'none';
+
+  document.getElementById('progressFill').style.width = '20%';
+
+  // ── 1. LOCAL STORAGE DATA ──────────────────────────────────────────────────
+  let s1 = '';
+
+  const projectState = (() => { try { return JSON.parse(localStorage.getItem('project-state') || 'null'); } catch { return null; } })();
+  s1 += projectState
+    ? row('pass', 'project-state key exists', 'Main project data found in localStorage', `${Array.isArray(projectState) ? projectState.length : '?'} projects loaded`)
+    : row('fail', 'project-state key MISSING', 'No project data saved — app may not have been opened yet or data was cleared', 'NOT FOUND');
+
+  if (Array.isArray(projectState)) {
+    const ids = projectState.map(p => p.id);
+    const missing = EXPECTED_PROJECTS.filter(id => !ids.includes(id));
+    s1 += missing.length === 0
+      ? row('pass', 'All 16 projects present', `Found: ${ids.join(', ')}`, '16/16 ✓')
+      : row('fail', `Missing projects: ${missing.join(', ')}`, `Expected 16 projects, found ${ids.length}`, `${ids.length}/16`);
+
+    const noDate = projectState.filter(p => !p.contractDate && !p.start);
+    s1 += noDate.length === 0
+      ? row('pass', 'All projects have contract dates', 'SLA calculations will work for all projects', 'All dated ✓')
+      : row('warn', `${noDate.length} projects missing contract date`, `Projects: ${noDate.map(p=>p.id).join(', ')} — SLA cannot calculate`, `${noDate.length} projects`);
+
+    const badDates = projectState.filter(p => {
+      const d = p.contractDate || p.start;
+      if (!d) return false;
+      const parsed = new Date(d);
+      return isNaN(parsed.getTime()) || parsed.getFullYear() < 2020 || parsed.getFullYear() > 2030;
+    });
+    s1 += badDates.length === 0
+      ? row('pass', 'All contract dates are valid', 'Dates parse correctly and are in expected range (2020–2030)', 'All valid ✓')
+      : row('fail', `${badDates.length} invalid contract dates`, `Projects: ${badDates.map(p=>p.id).join(', ')} — dates may have wrong year`, `${badDates.length} bad dates`);
+
+    EXPECTED_DESIGNERS.forEach(d => {
+      const count = projectState.filter(p => p.designer === d).length;
+      s1 += count > 0
+        ? row('pass', `Designer "${d}" has projects`, `${count} projects assigned`, `${count} projects ✓`)
+        : row('warn', `Designer "${d}" has no projects`, 'No projects assigned to this designer', '0 projects');
+    });
+
+    const redZone = projectState.filter(p => {
+      const w = getWeek(p.contractDate || p.start);
+      return w && w > 8;
+    });
+    s1 += row(redZone.length > 0 ? 'warn' : 'pass',
+      `RED ZONE projects: ${redZone.length}`,
+      redZone.length > 0 ? `Projects past 8-week SLA: ${redZone.map(p=>p.id).join(', ')}` : 'No projects past SLA deadline',
+      redZone.length > 0 ? `⚠️ ${redZone.length} overdue` : 'All on track ✓');
+  }
+
+  document.getElementById('progressFill').style.width = '35%';
+
+  // ── 2. PAYMENT DATA ────────────────────────────────────────────────────────
+  let s2 = '';
+  const payments = (() => { try { return JSON.parse(localStorage.getItem('payment-milestones') || 'null'); } catch { return null; } })();
+  s2 += payments
+    ? row('pass', 'payment-milestones key exists', 'Payment data found in localStorage', `${Object.keys(payments).length} projects with payment data`)
+    : row('warn', 'payment-milestones key missing', 'No payment data saved yet — run Contract Analyser to populate', 'NOT FOUND');
+
+  if (payments) {
+    const zeroValue = Object.entries(payments).filter(([id, miles]) => {
+      if (!Array.isArray(miles)) return false;
+      return miles.every(m => !m.amount || m.amount === 0 || m.amount === '0');
+    });
+    s2 += zeroValue.length === 0
+      ? row('pass', 'Payment amounts populated', 'All projects with payment data have milestone amounts', 'Amounts ✓')
+      : row('warn', `${zeroValue.length} projects have $0 payment milestones`, `Projects: ${zeroValue.map(([id])=>id).join(', ')} — run Contract Analyser`, `${zeroValue.length} projects`);
+
+    const badPayDates = [];
+    Object.entries(payments).forEach(([id, miles]) => {
+      if (!Array.isArray(miles)) return;
+      miles.forEach(m => {
+        if (m.datePaid) {
+          const d = new Date(m.datePaid);
+          if (isNaN(d.getTime()) || d.getFullYear() < 2020 || d.getFullYear() > 2030) {
+            badPayDates.push(`${id}:${m.code}`);
+          }
+        }
+      });
+    });
+    s2 += badPayDates.length === 0
+      ? row('pass', 'Payment dates are valid', 'All payment date fields parse correctly', 'All valid ✓')
+      : row('fail', `Invalid payment dates found`, `Bad dates: ${badPayDates.join(', ')}`, `${badPayDates.length} bad dates`);
+  }
+
+  document.getElementById('progressFill').style.width = '50%';
+
+  // ── 3. CITY SUBMISSION DATA ────────────────────────────────────────────────
+  let s3 = '';
+  const city = (() => { try { return JSON.parse(localStorage.getItem('city-submissions') || 'null'); } catch { return null; } })();
+  s3 += city
+    ? row('pass', 'city-submissions key exists', `City submission data found for ${Object.keys(city).length} projects`, `${Object.keys(city).length} projects ✓`)
+    : row('warn', 'city-submissions key missing', 'No city data saved yet — enter via City button on project rows', 'NOT FOUND');
+
+  if (city) {
+    const badCityDates = [];
+    Object.entries(city).forEach(([id, data]) => {
+      ['firstSubmittalDate','permitApprovalDate','permitExpiryDate'].forEach(field => {
+        if (data[field]) {
+          const d = new Date(data[field]);
+          if (isNaN(d.getTime()) || d.getFullYear() < 2020 || d.getFullYear() > 2035) {
+            badCityDates.push(`${id}:${field}(${data[field]})`);
+          }
+        }
+      });
+      if (data.rounds && Array.isArray(data.rounds)) {
+        data.rounds.forEach((round, ri) => {
+          ['commentsDate','submittedDate'].forEach(f => {
+            if (round[f]) {
+              const d = new Date(round[f]);
+              if (isNaN(d.getTime()) || d.getFullYear() < 2020 || d.getFullYear() > 2035) {
+                badCityDates.push(`${id}:round${ri}:${f}(${round[f]})`);
+              }
+            }
+          });
+        });
+      }
+    });
+    s3 += badCityDates.length === 0
+      ? row('pass', 'City submission dates are valid', 'All city date fields parse correctly with valid years', 'All valid ✓')
+      : row('fail', `Invalid city dates found`, `Bad: ${badCityDates.slice(0,5).join(', ')}${badCityDates.length>5?'...':''}`, `${badCityDates.length} bad dates`);
+  }
+
+  // ── 4. HOA DATA ────────────────────────────────────────────────────────────
+  let s4 = '';
+  const hoa = (() => { try { return JSON.parse(localStorage.getItem('hoa-submissions') || 'null'); } catch { return null; } })();
+  s4 += hoa
+    ? row('pass', 'hoa-submissions key exists', `HOA data found for ${Object.keys(hoa).length} projects`, `${Object.keys(hoa).length} projects ✓`)
+    : row('warn', 'hoa-submissions key missing', 'No HOA data saved yet', 'NOT FOUND');
+
+  if (hoa) {
+    const badHoaDates = [];
+    Object.entries(hoa).forEach(([id, data]) => {
+      ['submittedDate','decisionDate','decisionDateActual','approvalDate','feePaidDate'].forEach(field => {
+        if (data[field]) {
+          const d = new Date(data[field]);
+          if (isNaN(d.getTime()) || d.getFullYear() < 2020 || d.getFullYear() > 2035) {
+            badHoaDates.push(`${id}:${field}(${data[field]})`);
+          }
+        }
+      });
+      if (data.revisions && Array.isArray(data.revisions)) {
+        data.revisions.forEach((rev, ri) => {
+          ['dateRequested','dateResubmitted'].forEach(f => {
+            if (rev[f]) {
+              const d = new Date(rev[f]);
+              if (isNaN(d.getTime()) || d.getFullYear() < 2020 || d.getFullYear() > 2035) {
+                badHoaDates.push(`${id}:rev${ri}:${f}(${rev[f]})`);
+              }
+            }
+          });
+        });
+      }
+    });
+    s4 += badHoaDates.length === 0
+      ? row('pass', 'HOA dates are valid', 'All HOA date fields parse correctly', 'All valid ✓')
+      : row('fail', `Invalid HOA dates found`, `Bad: ${badHoaDates.slice(0,5).join(', ')}${badHoaDates.length>5?'...':''}`, `${badHoaDates.length} bad dates`);
+
+    const hoaDocsCheck = Object.entries(hoa).filter(([id, data]) => {
+      return data.hoaRequired && data.documentsSubmitted && typeof data.documentsSubmitted === 'object';
+    });
+    s4 += hoaDocsCheck.length > 0
+      ? row('pass', 'HOA documents submitted field exists', `${hoaDocsCheck.length} HOA projects have documents submitted data`, `${hoaDocsCheck.length} projects ✓`)
+      : row('warn', 'HOA documents submitted — check manually', 'Verify checkboxes work in HOA panel for HOA-required projects', 'Manual check needed');
+  }
+
+  document.getElementById('progressFill').style.width = '65%';
+
+  // ── 5. WORKFLOW DATA ───────────────────────────────────────────────────────
+  let s5 = '';
+  const workflow = (() => { try { return JSON.parse(localStorage.getItem('workflow-progress') || 'null'); } catch { return null; } })();
+  s5 += workflow
+    ? row('pass', 'workflow-progress key exists', `Workflow data found for ${Object.keys(workflow).length} projects`, `${Object.keys(workflow).length} projects ✓`)
+    : row('warn', 'workflow-progress key missing', 'No workflow progress saved yet — check off steps in Workflow panel', 'NOT FOUND');
+
+  // ── 6. SETTINGS DATA ──────────────────────────────────────────────────────
+  let s6 = '';
+  const currentUser = localStorage.getItem('current-user');
+  s6 += currentUser
+    ? row('pass', 'Current user is set', `Logged in as: ${currentUser}`, `${currentUser} ✓`)
+    : row('warn', 'No current user set', '"Who are you?" modal will appear on next app launch', 'Not set');
+
+  const theme = localStorage.getItem('truplans-theme');
+  s6 += row('pass', 'Theme preference', `Current theme: ${theme || 'dark (default)'}`, theme || 'dark');
+
+  const notifPrefs = (() => { try { return JSON.parse(localStorage.getItem('notification-prefs') || 'null'); } catch { return null; } })();
+  s6 += notifPrefs
+    ? row('pass', 'Notification preferences saved', `Notifications enabled: ${notifPrefs.enabled !== false ? 'Yes' : 'No'}`, 'Prefs found ✓')
+    : row('warn', 'Notification preferences not set', 'Default notification settings will be used', 'Using defaults');
+
+  const contractPaths = (() => { try { return JSON.parse(localStorage.getItem('contract-paths') || 'null'); } catch { return null; } })();
+  s6 += contractPaths
+    ? row('pass', 'Contract PDF paths saved', `${Object.keys(contractPaths).length} contracts attached`, `${Object.keys(contractPaths).length} PDFs ✓`)
+    : row('warn', 'No contract PDFs attached', 'Attach PDFs via Contract button on project rows', 'None attached');
+
+  document.getElementById('progressFill').style.width = '80%';
+
+  // ── 7. SERVER / API ────────────────────────────────────────────────────────
+  let s7 = '';
+  s7 += serverOk
+    ? row('pass', 'Server running on port 3001', 'Contract Analyser is ready to use', 'Server UP ✓')
+    : row('fail', 'Server NOT running on port 3001', 'Contract Analyser will show "Failed to fetch" error. Fix: open PowerShell → cd C:\\TruPlans\\truplans-dashboard → npm run server', 'Server DOWN ❌');
+
+  if (serverOk) {
+    try {
+      const r = await fetch('http://localhost:3001/health', { signal: AbortSignal.timeout(3000) });
+      const data = await r.json();
+      s7 += data.apiKey
+        ? row('pass', 'Anthropic API key loaded', 'Contract Analyser can connect to Claude AI', 'API key ✓')
+        : row('fail', 'Anthropic API key missing', 'Check config.json for anthropicKey value', 'No API key');
+    } catch {
+      s7 += row('warn', 'Could not verify API key', 'Server responded but health check incomplete', 'Unknown');
+    }
+  }
+
+  document.getElementById('progressFill').style.width = '90%';
+
+  // ── 8. MANUAL CHECKS ──────────────────────────────────────────────────────
+  let s8 = '';
+  s8 += row('skip', 'Dashboard KPI cards display correctly', 'Check: Active count, Total Contract value, Invoiced, Outstanding, Red Zone, Amber cards all showing', 'Manual');
+  s8 += row('skip', 'Revenue charts render', 'Check: Monthly bar chart and SLA donut chart visible on Dashboard tab', 'Manual');
+  s8 += row('skip', 'Projects tab — all 16 rows visible', 'Check: All project rows showing with correct job numbers and client names', 'Manual');
+  s8 += row('skip', 'SLA pills colored correctly', 'Check: RED ZONE projects (Walker, Tan, Attia-Arbios) show red pill', 'Manual');
+  s8 += row('skip', 'Project detail page navigation', 'Check: Click project name → detail page opens. Click ← Projects → goes back', 'Manual');
+  s8 += row('skip', 'Workflow checklist opens', 'Check: Click workflow button → 23 steps show, check one off → disappears from Tasks', 'Manual');
+  s8 += row('skip', 'Payment panel opens', 'Check: Click 💰 → milestones show with correct amounts, toggle Pending→Collected works', 'Manual');
+  s8 += row('skip', 'City panel — date fields', 'Check: Enter a date in all city date fields — verify year saves correctly (not resetting to wrong year)', 'Manual ⚠️');
+  s8 += row('skip', 'HOA panel — date fields', 'Check: Enter dates in HOA submittal date, decision date — verify year saves correctly', 'Manual ⚠️');
+  s8 += row('skip', 'HOA documents submitted checkboxes', 'Check: Click each checkbox in Documents Submitted section — verify they stay checked after closing panel', 'Manual ⚠️');
+  s8 += row('skip', 'Contract Analyser', 'Check: Upload a TruPlans contract PDF → verify all data extracts correctly → Save to Project', 'Manual (needs server)');
+  s8 += row('skip', 'Contract PDF Open button', 'Check: Attach a PDF → click Open button → verify PDF opens in default reader', 'Manual ⚠️');
+  s8 += row('skip', 'Global Search (Ctrl+F)', 'Check: Press Ctrl+F → type "Walker" → result appears → click → opens detail page → Escape closes', 'Manual');
+  s8 += row('skip', 'Weekly Report PDF', 'Check: Click printer icon → "Saved to Desktop" appears → open PDF → all sections present', 'Manual');
+  s8 += row('skip', 'Email template opens Gmail', 'Check: Click ✉️ → select template → click "Open in Gmail" → Chrome opens Gmail compose with subject', 'Manual');
+  s8 += row('skip', 'Desktop notifications', 'Check: Bell icon shows red dot → click bell → notification history shows RED ZONE alerts', 'Manual');
+  s8 += row('skip', 'Light/Dark theme toggle', 'Check: Click moon/sun icon → theme switches → all tabs look correct in both themes', 'Manual');
+  s8 += row('skip', 'Tasks tab — My Tasks', 'Check: Tasks tab defaults to current user → due dates show → checkbox marks task complete', 'Manual');
+  s8 += row('skip', 'Team tab', 'Check: Designer cards show alphabetically with project names and SLA pills', 'Manual');
+  s8 += row('skip', 'Gantt tab', 'Check: Gantt bars visible for projects with dates', 'Manual');
+  s8 += row('skip', 'Auto-save indicator', 'Check: Make any change → green "Saved ✓" flashes in top nav bar', 'Manual');
+
+  document.getElementById('progressFill').style.width = '100%';
+
+  // ── RENDER ALL ─────────────────────────────────────────────────────────────
+  document.getElementById('results').innerHTML =
+    section('1. Project Data (localStorage)', s1, '📋') +
+    section('2. Payment Milestone Data', s2, '💰') +
+    section('3. City Submission Data', s3, '🏛️') +
+    section('4. HOA Submission Data', s4, '🏠') +
+    section('5. Workflow Progress Data', s5, '✅') +
+    section('6. App Settings & Preferences', s6, '⚙️') +
+    section('7. Server & API Connection', s7, '🔌') +
+    section('8. Manual Visual Checks Required', s8, '👁️');
+
+  document.getElementById('passCount').textContent = results.pass;
+  document.getElementById('failCount').textContent = results.fail;
+  document.getElementById('warnCount').textContent = results.warn;
+  document.getElementById('skipCount').textContent = results.skip;
+
+  document.getElementById('runTimestamp').textContent =
+    'Last run: ' + new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+// Auto-run on load
+window.addEventListener('load', () => setTimeout(runAllTests, 500));
+</script>
+</body>
+</html>

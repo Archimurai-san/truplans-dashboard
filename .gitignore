@@ -7,3 +7,5 @@ config.json
 credentials.json
 credentials.json.json
 *.docx
+*.zip
+*.exe

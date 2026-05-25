@@ -14,7 +14,17 @@
       "Bash(git commit -m ' *)",
       "Bash(Get-ChildItem *)",
       "Bash(node -e \"require\\('recharts'\\); console.log\\('ok'\\)\")",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(git commit *)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(start *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(git *)",
+      "PowerShell(Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WorkingDirectory \"C:\\\\TruPlans\\\\ARHIVA\\\\truplans-dashboard\" -WindowStyle Hidden; Start-Process -FilePath \"cmd\" -ArgumentList \"/c npm run dev\" -WorkingDirectory \"C:\\\\TruPlans\\\\ARHIVA\\\\truplans-dashboard\" -WindowStyle Hidden; Start-Sleep -Seconds 3; Start-Process \"http://localhost:5173\"; Write-Host \"Done\")",
+      "PowerShell(gh auth *)",
+      "PowerShell(gh repo *)",
+      "Bash(git *)",
+      "PowerShell(Stop-Process *)"
     ]
   }
 }
