@@ -35,8 +35,8 @@ autoUpdater.on('error', err => {
 let serverProcess = null
 
 function startServer() {
-  const serverPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'server-bundle.mjs')
+const serverPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'server-bundle.cjs')
     : path.join(__dirname, 'server.js')
 
   serverProcess = spawn(process.execPath, [serverPath], {
@@ -315,8 +315,8 @@ app.whenReady().then(() => {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self' 'unsafe-inline' 'unsafe-eval';" +
-          "connect-src 'self' http://localhost:3001 https://*.supabase.co https://api.anthropic.com;" +
-          "img-src 'self' data: blob:;" +
+          "connect-src 'self' http://localhost:3001 https://*.supabase.co wss://*.supabase.co https://api.anthropic.com;" +
+          "img-src 'self' data: blob: https://*.googleusercontent.com;" +
           "frame-src 'self' blob: data:;"
         ]
       }

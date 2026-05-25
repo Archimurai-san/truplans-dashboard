@@ -3,14 +3,14 @@
   "description": "TruPlans project management dashboard for architectural design and construction workflows",
   "author": "Radovan Marusic <marusic.radovan@gmail.com>",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "electron.cjs",
   "scripts": {
     "dev": "concurrently \"node server.js\" \"vite\"",
     "server": "node server.js",
     "build": "vite build",
-    "build:server": "esbuild server.js --bundle --platform=node --outfile=server-bundle.mjs --format=esm",
+    "build:server": "esbuild server.js --bundle --platform=node --outfile=server-bundle.cjs --format=cjs \"--banner:js=const __import_meta_url__=require('url').pathToFileURL(__filename).href;\" \"--define:import.meta.url=__import_meta_url__\"",
     "preview": "vite preview",
     "electron:build": "vite build && npm run build:server && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder",
     "electron:preview": "electron ."
@@ -49,8 +49,8 @@
     ],
     "extraResources": [
       {
-        "from": "server-bundle.mjs",
-        "to": "server-bundle.mjs"
+        "from": "server-bundle.cjs",
+        "to": "server-bundle.cjs"
       },
       {
         "from": "config.json",
