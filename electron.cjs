@@ -71,6 +71,23 @@ function createWindow() {
     autoHideMenuBar: true,
   })
   mainWindow.maximize()
+
+  // In the packaged app there is no Vite dev server at localhost:5173.
+  // After Google OAuth, Supabase bounces the browser to localhost:5173#access_token=...
+  // Intercept that navigation and load the real file:// index with the hash intact
+  // so Supabase's detectSessionInUrl picks up the tokens correctly.
+  if (app.isPackaged) {
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    const handleAuthRedirect = (event, url) => {
+      if (!url.startsWith('http://localhost:5173')) return;
+      event.preventDefault();
+      const hash = url.includes('#') ? url.substring(url.indexOf('#') + 1) : '';
+      mainWindow.loadFile(indexPath, { hash });
+    };
+    mainWindow.webContents.on('will-navigate', handleAuthRedirect);
+    mainWindow.webContents.on('will-redirect', handleAuthRedirect);
+  }
+
   mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'))
   mainWindow.on('closed', () => { mainWindow = null })
 }
@@ -303,6 +320,8 @@ ipcMain.handle('analyse-contract', async (_event, payload) => {
 app.disableHardwareAcceleration()
 app.whenReady().then(() => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const isLocal = details.url.startsWith('file://') || details.url.startsWith('http://localhost');
+    if (!isLocal) { callback({ responseHeaders: details.responseHeaders }); return; }
     callback({
       responseHeaders: {
         ...details.responseHeaders,
