@@ -2487,7 +2487,7 @@ function matchProject(from, subject = '') {
   return null;
 }
 
-function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '' }) {
+function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '', userEmail = '' }) {
   const [connected, setConnected] = useState(null);
   const [gmailEmail, setGmailEmail] = useState('');
   const [loading, setLoading] = useState(true);
@@ -2502,7 +2502,10 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   const checkStatus = () => {
     setLoading(true);
     setError(null);
-    fetch(`${API_BASE}/api/gmail/status`)
+    const url = userEmail
+      ? `${API_BASE}/api/gmail/token/${encodeURIComponent(userEmail)}`
+      : `${API_BASE}/api/gmail/status`;
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         setConnected(data.connected);
@@ -2514,7 +2517,10 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   };
 
   const fetchThreads = () => {
-    fetch(`${API_BASE}/api/gmail/list`)
+    const url = userEmail
+      ? `${API_BASE}/api/gmail/list?userEmail=${encodeURIComponent(userEmail)}`
+      : `${API_BASE}/api/gmail/list`;
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         if (data.error) { setError(data.error); } else { onSetThreads?.(data); }
@@ -2527,7 +2533,10 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     setSelectedThread(t);
     setThreadContent({ loading: true, error: null });
     setReplyOpen(false); setReplyBody(''); setReplyStatus(null);
-    fetch(`${API_BASE}/api/gmail/thread/${t.id}`)
+    const url = userEmail
+      ? `${API_BASE}/api/gmail/thread/${t.id}?userEmail=${encodeURIComponent(userEmail)}`
+      : `${API_BASE}/api/gmail/thread/${t.id}`;
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         if (data.error) setThreadContent({ loading: false, error: data.error });
@@ -2545,7 +2554,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
     fetch(`${API_BASE}/api/gmail/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ threadId: selectedThread.id, to, subject: selectedThread.subject, body: replyBody }),
+      body: JSON.stringify({ threadId: selectedThread.id, to, subject: selectedThread.subject, body: replyBody, userEmail }),
     })
       .then(r => r.json())
       .then(data => {
@@ -2599,7 +2608,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
         Link your Google account to view your inbox here. A browser window will open to complete sign-in.
       </div>
       <button
-        onClick={() => window.open(`${API_BASE}/api/gmail/auth`, '_blank')}
+        onClick={() => window.open(`${API_BASE}/api/gmail/auth${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`, '_blank')}
         style={{ padding: '10px 28px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '1px' }}
       >
         CONNECT GMAIL
@@ -3779,7 +3788,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ}/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''}/>}
           </>
         )}
       </main>

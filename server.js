@@ -127,6 +127,31 @@ function makeOAuth2Client() {
   );
 }
 
+async function getTokenForUser(userEmail) {
+  if (!supabase || !userEmail) return null;
+  const { data, error } = await supabase
+    .from('gmail_tokens')
+    .select('refresh_token, gmail_email')
+    .eq('user_email', userEmail)
+    .single();
+  if (error || !data) return null;
+  return data;
+}
+
+async function getOAuthForUser(userEmail) {
+  const oauth2 = makeOAuth2Client();
+  if (!oauth2) return null;
+  if (userEmail) {
+    const record = await getTokenForUser(userEmail);
+    if (!record?.refresh_token) return null;
+    oauth2.setCredentials({ refresh_token: record.refresh_token });
+  } else {
+    if (!gmailRefreshToken) return null;
+    oauth2.setCredentials({ refresh_token: gmailRefreshToken });
+  }
+  return oauth2;
+}
+
 app.use(cors({ origin: ["http://localhost:5173","http://localhost:5174"] }));
 app.use(express.json({ limit: "50mb" }));
 
@@ -245,24 +270,39 @@ app.get('/api/gmail/auth', (req, res) => {
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
     prompt: 'consent',
+    state: req.query.userEmail || '',
   });
   res.redirect(url);
 });
 
 app.get('/api/gmail/callback', async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
   if (error) return res.status(400).send(htmlPage('Auth Error', `<p style="color:#e74c3c">Error: ${error}</p>`));
   const oauth2 = makeOAuth2Client();
   if (!oauth2) return res.status(500).send(htmlPage('Error', '<p>Gmail credentials not configured</p>'));
   try {
     const { tokens } = await oauth2.getToken(code);
-    if (tokens.refresh_token) {
-      gmailRefreshToken = tokens.refresh_token;
-      saveConfig({ gmailRefreshToken: tokens.refresh_token });
-    } else if (!gmailRefreshToken) {
+    if (!tokens.refresh_token && !gmailRefreshToken) {
       return res.status(400).send(htmlPage('No Refresh Token',
         '<p>Google did not return a refresh token. Revoke TruPlans access in your Google Account security settings, then try connecting again.</p>'
       ));
+    }
+    if (tokens.refresh_token) {
+      gmailRefreshToken = tokens.refresh_token;
+      saveConfig({ gmailRefreshToken: tokens.refresh_token });
+      if (state && supabase) {
+        oauth2.setCredentials(tokens);
+        let gEmail = '';
+        try {
+          const gmail = google.gmail({ version: 'v1', auth: oauth2 });
+          const profile = await gmail.users.getProfile({ userId: 'me' });
+          gEmail = profile.data.emailAddress || '';
+        } catch(e) {}
+        await supabase.from('gmail_tokens').upsert(
+          { user_email: state, refresh_token: tokens.refresh_token, gmail_email: gEmail, updated_at: new Date().toISOString() },
+          { onConflict: 'user_email' }
+        );
+      }
     }
     res.send(htmlPage('Gmail Connected',
       '<p style="color:#52d68a;font-size:18px;font-weight:700">Gmail connected!</p><p>You can close this window and click Refresh in the TruPlans Inbox tab.</p>'
@@ -276,11 +316,27 @@ app.get('/api/gmail/status', (req, res) => {
   res.json({ connected: !!gmailRefreshToken, gmailEmail });
 });
 
+app.get('/api/gmail/token/:userEmail', async (req, res) => {
+  const record = await getTokenForUser(req.params.userEmail);
+  res.json({ connected: !!(record?.refresh_token), gmailEmail: record?.gmail_email || null });
+});
+
+app.post('/api/gmail/save-token', async (req, res) => {
+  const { userEmail, refreshToken, gmailEmail: gEmail } = req.body;
+  if (!userEmail || !refreshToken) return res.status(400).json({ error: 'Missing userEmail or refreshToken' });
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  const { error } = await supabase.from('gmail_tokens').upsert(
+    { user_email: userEmail, refresh_token: refreshToken, gmail_email: gEmail || '', updated_at: new Date().toISOString() },
+    { onConflict: 'user_email' }
+  );
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
 app.get('/api/gmail/list', async (req, res) => {
-  if (!gmailRefreshToken) return res.status(401).json({ error: 'Not connected' });
-  const oauth2 = makeOAuth2Client();
-  if (!oauth2) return res.status(500).json({ error: 'Gmail credentials not configured' });
-  oauth2.setCredentials({ refresh_token: gmailRefreshToken });
+  const { userEmail } = req.query;
+  const oauth2 = await getOAuthForUser(userEmail);
+  if (!oauth2) return res.status(401).json({ error: 'Not connected' });
   try {
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
     const listRes = await gmail.users.threads.list({ userId: 'me', maxResults: 500 });
@@ -302,11 +358,9 @@ app.get('/api/gmail/list', async (req, res) => {
 });
 
 app.post('/api/gmail/reply', async (req, res) => {
-  if (!gmailRefreshToken) return res.status(401).json({ error: 'Not connected' });
-  const oauth2 = makeOAuth2Client();
-  if (!oauth2) return res.status(500).json({ error: 'Gmail credentials not configured' });
-  oauth2.setCredentials({ refresh_token: gmailRefreshToken });
-  const { threadId, to, subject, body } = req.body;
+  const { threadId, to, subject, body, userEmail } = req.body;
+  const oauth2 = await getOAuthForUser(userEmail);
+  if (!oauth2) return res.status(401).json({ error: 'Not connected' });
   if (!threadId || !to || !body) return res.status(400).json({ error: 'Missing threadId, to, or body' });
   try {
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
@@ -336,10 +390,9 @@ app.post('/api/gmail/reply', async (req, res) => {
 });
 
 app.get('/api/gmail/thread/:id', async (req, res) => {
-  if (!gmailRefreshToken) return res.status(401).json({ error: 'Not connected' });
-  const oauth2 = makeOAuth2Client();
-  if (!oauth2) return res.status(500).json({ error: 'Gmail credentials not configured' });
-  oauth2.setCredentials({ refresh_token: gmailRefreshToken });
+  const { userEmail } = req.query;
+  const oauth2 = await getOAuthForUser(userEmail);
+  if (!oauth2) return res.status(401).json({ error: 'Not connected' });
   try {
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
     const thread = await gmail.users.threads.get({ userId: 'me', id: req.params.id, format: 'full' });
