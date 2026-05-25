@@ -67,7 +67,13 @@ function createWindow() {
     autoHideMenuBar: true,
   })
   mainWindow.maximize()
-  mainWindow.webContents.openDevTools()
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' || (input.control && input.shift && input.key === 'I')) {
+      mainWindow.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+  })
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL) => {
     if (validatedURL && validatedURL.startsWith('http://localhost:3001')) {
