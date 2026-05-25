@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-electron/
 server-bundle.mjs
+server-bundle.cjs
 *.local
 .env
 config.json
