@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { google } from 'googleapis';
@@ -197,7 +197,7 @@ app.get('/api/auth/callback', (req, res) => {
   // Fragment is not sent to the server, so we serve a small page that bounces
   // the browser back to the frontend app with the fragment intact.
   res.send(`<!DOCTYPE html><html><body><script>
-    var dest = 'http://localhost:5173' + window.location.hash;
+    var dest = 'http://localhost:3001' + window.location.hash;
     window.location.replace(dest);
   </script></body></html>`);
 });
@@ -429,9 +429,19 @@ function htmlPage(title, body) {
   return `<!DOCTYPE html><html><head><title>${title}</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:#f0f0f0"><div style="text-align:center;max-width:480px;padding:32px"><h2>${title}</h2>${body}</div></body></html>`;
 }
 
+// Serve built frontend — dist sits alongside server.js in both dev and packaged app
+const distPath = join(__dir, 'dist');
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api/')) res.sendFile(join(distPath, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`\n🚀 TruPlans API proxy running on http://localhost:${PORT}`);
   console.log(API_KEY ? "✓  Anthropic key ready" : "ℹ  Anthropic key pending — loading from Supabase app_config");
   console.log(gmailRefreshToken ? "✓  Gmail token present" : "ℹ  Gmail not yet connected");
-  console.log(`\nDashboard: http://localhost:5173\n`);
+  console.log(existsSync(distPath) ? "✓  Serving frontend from dist/" : "ℹ  No dist/ found — frontend not served");
+  console.log(`\nDashboard: http://localhost:3001\n`);
 });

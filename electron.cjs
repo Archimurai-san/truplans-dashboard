@@ -63,32 +63,11 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      // webSecurity must remain false: loadFile() uses file:// protocol,
-      // and Chromium blocks file:// → http://localhost cross-origin fetches
-      // even when the server sends correct CORS headers.
-      webSecurity: false,
     },
     autoHideMenuBar: true,
   })
   mainWindow.maximize()
-
-  // In the packaged app there is no Vite dev server at localhost:5173.
-  // After Google OAuth, Supabase bounces the browser to localhost:5173#access_token=...
-  // Intercept that navigation and load the real file:// index with the hash intact
-  // so Supabase's detectSessionInUrl picks up the tokens correctly.
-  if (app.isPackaged) {
-    const indexPath = path.join(__dirname, 'dist', 'index.html');
-    const handleAuthRedirect = (event, url) => {
-      if (!url.startsWith('http://localhost:5173')) return;
-      event.preventDefault();
-      const hash = url.includes('#') ? url.substring(url.indexOf('#') + 1) : '';
-      mainWindow.loadFile(indexPath, { hash });
-    };
-    mainWindow.webContents.on('will-navigate', handleAuthRedirect);
-    mainWindow.webContents.on('will-redirect', handleAuthRedirect);
-  }
-
-  mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'))
+  mainWindow.loadURL('http://localhost:3001')
   mainWindow.on('closed', () => { mainWindow = null })
 }
 

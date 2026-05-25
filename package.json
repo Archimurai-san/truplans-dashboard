@@ -57,6 +57,10 @@
       {
         "from": "server-pkg.json",
         "to": "package.json"
+      },
+      {
+        "from": "dist",
+        "to": "dist"
       }
     ],
     "publish": {
