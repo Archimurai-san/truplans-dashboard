@@ -70,6 +70,7 @@ function createWindow() {
     },
     autoHideMenuBar: true,
   })
+  mainWindow.maximize()
   mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'))
   mainWindow.on('closed', () => { mainWindow = null })
 }
