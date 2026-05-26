@@ -57,6 +57,7 @@ function createWindow() {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
+    show: false,
     title: 'TruPlans Dashboard',
     icon: path.join(__dirname, 'public', 'icon.png'),
     webPreferences: {
@@ -66,7 +67,10 @@ function createWindow() {
     },
     autoHideMenuBar: true,
   })
-  mainWindow.maximize()
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize()
+    mainWindow.show()
+  })
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12' || (input.control && input.shift && input.key === 'I')) {
@@ -290,21 +294,13 @@ ipcMain.handle('generate-weekly-report', async (_event, data) => {
 
 ipcMain.handle('analyse-contract', async (_event, payload) => {
   try {
-    const configPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'config.json')
-      : path.join(__dirname, 'config.json')
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-    const apiKey = config.anthropicKey
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('http://localhost:3001/api/claude', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
     const data = await response.json()
+    if (!response.ok) return { ok: false, error: data.error || `Server error ${response.status}` }
     return { ok: true, data }
   } catch (err) {
     return { ok: false, error: err.message }

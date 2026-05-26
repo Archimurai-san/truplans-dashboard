@@ -622,11 +622,11 @@ function SLABadge({project,compact=false}){
 }
 
 const S={
-  app:{minHeight:"100vh",background:"var(--bg-page)",color:"var(--text-primary)",fontFamily:"Georgia,serif"},
+  app:{minHeight:"100vh",overflowX:"hidden",background:"var(--bg-page)",color:"var(--text-primary)",fontFamily:"Georgia,serif"},
   nav:{background:"var(--bg-nav)",borderBottom:"var(--nav-border-bottom)",padding:"0 24px",display:"flex",alignItems:"center",gap:0,position:"sticky",top:0,zIndex:100},
   logo:{color:"var(--accent)",fontWeight:700,fontSize:16,letterSpacing:"2px",marginRight:32,padding:"14px 0",fontFamily:"monospace"},
   tab:a=>({padding:"14px 18px",cursor:"pointer",fontSize:11,letterSpacing:"1px",fontWeight:a?700:400,color:a?"var(--tab-active)":"var(--tab-inactive)",background:"none",border:"none",borderBottom:a?"2px solid var(--tab-active)":"2px solid transparent",fontFamily:"monospace",textTransform:"uppercase"}),
-  main:{padding:"24px",maxWidth:1500,margin:"0 auto"},
+  main:{padding:"24px",maxWidth:1500,margin:"0 auto",overflowX:"hidden"},
   card:{background:"var(--bg-card)",border:"1px solid var(--border-primary)",borderRadius:8,padding:"16px 20px"},
   metric:{background:"var(--bg-card)",border:"1px solid var(--border-primary)",borderRadius:8,padding:"20px",flex:1,minWidth:140},
   sel:{background:"var(--bg-card)",border:"1px solid var(--border-secondary)",color:"var(--text-body)",padding:"5px 10px",borderRadius:4,fontSize:11,cursor:"pointer",fontFamily:"monospace"},
@@ -1300,7 +1300,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
       </div>
       {/* ROW 1 — 50/50 */}
       <div style={{display:'flex',gap:20,alignItems:'flex-start',marginBottom:20}}>
-        <div style={{flex:'0 0 50%',minWidth:0}}>
+        <div style={{flex:'0 0 calc(50% - 10px)',minWidth:0}}>
           <div style={{...S.card}}>
             <div style={{display:'flex',alignItems:'flex-start',gap:24}}>
               <div style={{flexShrink:0,textAlign:'center',minWidth:64}}>
@@ -1346,7 +1346,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             </div>
           </div>
         </div>
-        <div style={{flex:'0 0 50%',minWidth:0}}>
+        <div style={{flex:'0 0 calc(50% - 10px)',minWidth:0}}>
           <ContractModule project={project} onUpdate={updates=>onUpdateFields?.(project.id,updates)} inline={true}/>
         </div>
       </div>
@@ -3638,8 +3638,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           --sla-red-bg:#fce4ec; --sla-red-text:#c62828;
         }
         @keyframes slideInRight {
-          from { opacity:0; transform:translateX(24px); }
-          to   { opacity:1; transform:translateX(0); }
+          from { opacity:0; transform:translateY(8px); }
+          to   { opacity:1; transform:translateY(0); }
         }
         @keyframes slideOutLeft {
           from { opacity:1; transform:translateX(0); }
