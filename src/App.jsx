@@ -613,6 +613,7 @@ function ST({children,color="var(--section-header)"}){return<div style={{fontSiz
 function SLABadge({project,compact=false}){
   const s=getSLAStatus(project);
   if(s.zone==='none') return<span style={{fontSize:10,color:'var(--text-ghost)',fontFamily:'monospace'}}>No date</span>;
+  if(s.zone==='future') return<span style={{fontSize:10,color:'var(--text-ghost)',fontFamily:'monospace'}}>Future</span>;
   if(s.isExternal) return<div><span style={{background:'var(--status-ns-bg)',color:'var(--text-muted)',padding:'2px 8px',borderRadius:99,fontSize:10,fontWeight:600,fontFamily:'monospace'}}>⏸ External</span>{!compact&&<div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',marginTop:2,textAlign:'center'}}>SLA paused</div>}</div>;
   const cfg={green:{bg:'var(--status-done-bg)',text:'var(--status-done-text)',icon:'✓'},amber:{bg:'var(--status-hold-bg)',text:'var(--status-hold-text)',icon:'⚠'},red:{bg:'var(--sla-red-bg)',text:'var(--sla-red-text)',icon:''}};
   const c=cfg[s.zone];
