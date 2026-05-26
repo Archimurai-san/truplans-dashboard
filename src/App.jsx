@@ -624,8 +624,8 @@ function SLABadge({project,compact=false}){
 const S={
   app:{minHeight:"100vh",overflowX:"hidden",background:"var(--bg-page)",color:"var(--text-primary)",fontFamily:"Georgia,serif"},
   nav:{background:"var(--bg-nav)",borderBottom:"var(--nav-border-bottom)",padding:"0 24px",display:"flex",alignItems:"center",gap:0,position:"sticky",top:0,zIndex:100},
-  logo:{color:"var(--accent)",fontWeight:700,fontSize:16,letterSpacing:"2px",marginRight:32,padding:"14px 0",fontFamily:"monospace"},
-  tab:a=>({padding:"14px 18px",cursor:"pointer",fontSize:11,letterSpacing:"1px",fontWeight:a?700:400,color:a?"var(--tab-active)":"var(--tab-inactive)",background:"none",border:"none",borderBottom:a?"2px solid var(--tab-active)":"2px solid transparent",fontFamily:"monospace",textTransform:"uppercase"}),
+  logo:{color:"var(--accent)",fontWeight:700,fontSize:16,letterSpacing:"2px",marginRight:16,padding:"14px 0",fontFamily:"monospace"},
+  tab:a=>({padding:"14px 10px",cursor:"pointer",fontSize:11,letterSpacing:"1px",fontWeight:a?700:400,color:a?"var(--tab-active)":"var(--tab-inactive)",background:"none",border:"none",borderBottom:a?"2px solid var(--tab-active)":"2px solid transparent",fontFamily:"monospace",textTransform:"uppercase"}),
   main:{padding:"24px",maxWidth:1500,margin:"0 auto",overflowX:"hidden"},
   card:{background:"var(--bg-card)",border:"1px solid var(--border-primary)",borderRadius:8,padding:"16px 20px"},
   metric:{background:"var(--bg-card)",border:"1px solid var(--border-primary)",borderRadius:8,padding:"20px",flex:1,minWidth:140},
@@ -3719,7 +3719,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             </div>
           )}
         </div>
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
           {session?.user?(
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               {session.user.user_metadata?.avatar_url
