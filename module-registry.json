@@ -1,0 +1,12 @@
+{
+  "_comment": "Active version of each module. To roll back a module, change its value to a frozen version folder name (e.g. v1.0) and restart. Frozen v1.0 folders are READ-ONLY.",
+  "version": "1.0.4-modular",
+  "modules": {
+    "projects":          "v1.0",
+    "contract-analyser": "v1.0",
+    "email-agent":       "v1.0",
+    "team":              "v1.0",
+    "notifications":     "v1.0",
+    "auth":              "v1.0"
+  }
+}
