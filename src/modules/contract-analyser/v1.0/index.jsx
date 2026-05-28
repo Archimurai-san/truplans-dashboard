@@ -65,8 +65,14 @@ Set contractFormat: "TRUADDITIONS"
 === ALL FORMATS — SCOPE OF WORK (FORMAT 1 additional instruction) ===
 For FORMAT 1 (TruPlans Work Order): also extract scopeOfWork by scanning all service line items across pages 3–6. Extract ALL items as { category, description, included: "Y" or "N" } where category matches the page section (e.g. "Architectural", "Civil", "Structural", "Landscape"). Set included="Y" for items in scope, included="N" for items out of scope.
 
+=== ALL FORMATS — NEW vs DEMO BREAKDOWN ===
+Based on the INCLUDED scope items (included="Y"), produce a clear plain-language Scope of Work split into two lists:
+- newWork: array of short strings describing what will be NEW — anything built, added, installed, framed, or created (e.g. "New 10-Star floor system", "2 new casement windows", "10 recessed LED lights", "New electrical circuit").
+- demoWork: array of short strings describing what will be DEMOLISHED or REMOVED — anything torn out, demolished, de-installed, or hauled away (e.g. "Demolition of existing ceiling", "Remove existing window", "Haul away debris").
+If an item involves both (e.g. "enlarge existing window" = remove old + install new), list the removal part under demoWork and the install part under newWork. Only base these on items that are actually INCLUDED in the contract. Keep each entry concise (under 12 words).
+
 Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if not applicable to the detected format:
-{"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
+{"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"newWork":[],"demoWork":[],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 
 function AnalyseModal({project,onClose,onSave}){
@@ -158,6 +164,8 @@ function AnalyseModal({project,onClose,onSave}){
       start:e.signedDate||e.signatureDate||e.contractDate||e.workOrderDate||project.start,
       notes:notesParts.join(' '),
       scopeOfWork:e.scopeOfWork||[],
+      newWork:e.newWork||[],
+      demoWork:e.demoWork||[],
       contractPath:filename,
       contracts:[...(project.contracts||[]),{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
     },milestones);
@@ -248,9 +256,18 @@ function AnalyseModal({project,onClose,onSave}){
                     </div>
                   ))}
                 </div>}
-              </div>
-              <div>
-                <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'2px',marginBottom:12}}>Payment Milestones ({(edited.paymentMilestones||[]).length})</div>
+                {((edited.newWork||[]).length>0||(edited.demoWork||[]).length>0)&&<div style={{marginBottom:7,display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                  <div>
+                    <div style={{fontSize:9,fontWeight:700,color:'var(--status-done-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:6}}>🔨 New Work ({(edited.newWork||[]).length})</div>
+                    {(edited.newWork||[]).map((w,i)=><div key={i} style={{fontSize:10,display:'flex',gap:5,marginBottom:3}}><span style={{color:'var(--status-done-text)',flexShrink:0}}>+</span><span style={{color:'var(--text-body)'}}>{w}</span></div>)}
+                    {!(edited.newWork||[]).length&&<div style={{fontSize:10,color:'var(--text-faint)'}}>—</div>}
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,fontWeight:700,color:'var(--status-overdue-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:6}}>🧨 Demo / Remove ({(edited.demoWork||[]).length})</div>
+                    {(edited.demoWork||[]).map((w,i)=><div key={i} style={{fontSize:10,display:'flex',gap:5,marginBottom:3}}><span style={{color:'var(--status-overdue-text)',flexShrink:0}}>−</span><span style={{color:'var(--text-body)'}}>{w}</span></div>)}
+                    {!(edited.demoWork||[]).length&&<div style={{fontSize:10,color:'var(--text-faint)'}}>—</div>}
+                  </div>
+                </div>}
                 <table style={S.tbl}>
                   <thead><tr>{['Code','Description','Amount ($)','Trigger'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                   <tbody>

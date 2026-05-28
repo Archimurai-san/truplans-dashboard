@@ -566,6 +566,19 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace'}}>No scope of work — analyse a contract to populate.</div>
           )}
         </div>
+        {((project.newWork||[]).length>0||(project.demoWork||[]).length>0)&&<div style={S.card}>
+          <ST>New vs Demo</ST>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--status-done-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:8}}>🔨 New Work ({(project.newWork||[]).length})</div>
+              {(project.newWork||[]).length>0?(project.newWork||[]).map((w,i)=><div key={i} style={{display:'flex',gap:7,alignItems:'flex-start',marginBottom:4}}><span style={{color:'var(--status-done-text)',fontSize:12,fontWeight:700,flexShrink:0}}>+</span><span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.4}}>{w}</span></div>):(<div style={{fontSize:11,color:'var(--text-faint)'}}>—</div>)}
+            </div>
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:'var(--status-overdue-text)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1.5px',marginBottom:8}}>🧨 Demo / Remove ({(project.demoWork||[]).length})</div>
+              {(project.demoWork||[]).length>0?(project.demoWork||[]).map((w,i)=><div key={i} style={{display:'flex',gap:7,alignItems:'flex-start',marginBottom:4}}><span style={{color:'var(--status-overdue-text)',fontSize:12,fontWeight:700,flexShrink:0}}>−</span><span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.4}}>{w}</span></div>):(<div style={{fontSize:11,color:'var(--text-faint)'}}>—</div>)}
+            </div>
+          </div>
+        </div>}
         <div style={S.card}>
           <ST>Emails</ST>
           {(() => {
