@@ -263,6 +263,25 @@ app.post('/api/supabase/sync', async (req, res) => {
 
 // --- Gmail OAuth ---
 
+app.delete('/api/supabase/projects/:id', async (req, res) => {
+  const { id } = req.params;
+  console.log('[supabase] DELETE /api/supabase/projects/' + id + ' — client ready:', !!supabase);
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  if (!id) return res.status(400).json({ error: 'id is required' });
+  try {
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) {
+      console.error('[supabase] delete error:', error.message, error.details, error.hint);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[supabase] delete ok — removed id:', id);
+    res.json({ ok: true, deleted: id });
+  } catch(err) {
+    console.error('[supabase] delete exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/gmail/auth', (req, res) => {
   const oauth2 = makeOAuth2Client();
   if (!oauth2) return res.status(500).send('Gmail credentials not configured');

@@ -317,9 +317,23 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   const [inlineOpen,setInlineOpen]=useState(false);
   const cyclePhase=id=>{const o=["not_started","in_progress","done"];setPhases(prev=>prev.map(p=>{if(p.id!==id)return p;const ni=(o.indexOf(p.status)+1)%o.length;return{...p,status:o[ni],dateCompleted:o[ni]==="done"?new Date().toISOString().slice(0,10):p.dateCompleted};}));};
   const _phInit=useRef(false);
-  useEffect(()=>{if(!_phInit.current){_phInit.current=true;return;}onUpdate?.({phases});},[phases]);
+  const _phLastHash=useRef('');
+  useEffect(()=>{
+    if(!_phInit.current){_phInit.current=true;try{_phLastHash.current=JSON.stringify(phases);}catch{}return;}
+    let h;try{h=JSON.stringify(phases);}catch{h='';}
+    if(h===_phLastHash.current)return;
+    _phLastHash.current=h;
+    onUpdate?.({phases});
+  },[phases]);
   const _ctrsInit=useRef(false);
-  useEffect(()=>{if(!_ctrsInit.current){_ctrsInit.current=true;return;}onUpdate?.({contracts:ctrs});},[ctrs]);
+  const _ctrsLastHash=useRef('');
+  useEffect(()=>{
+    if(!_ctrsInit.current){_ctrsInit.current=true;try{_ctrsLastHash.current=JSON.stringify(ctrs);}catch{}return;}
+    let h;try{h=JSON.stringify(ctrs);}catch{h='';}
+    if(h===_ctrsLastHash.current)return;
+    _ctrsLastHash.current=h;
+    onUpdate?.({contracts:ctrs});
+  },[ctrs]);
   const _lastContractsLen=useRef(project.contracts.length);
   useEffect(()=>{
     if(project.contracts.length!==_lastContractsLen.current&&project.contracts.length>0){

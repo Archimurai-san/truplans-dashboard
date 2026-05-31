@@ -615,7 +615,14 @@ function WorkflowModal({project,projects,setProjects,teamMembers,onClose}){
   const toggleTask=(mi,ti)=>setWf(prev=>prev.map((m,i)=>i!==mi?m:{...m,tasks:m.tasks.map((t,j)=>j!==ti?t:{...t,done:!t.done})}));
   const cycleStatus=(idx)=>{const o=["Not Started","In Progress","Completed","Blocked"];setWf(prev=>prev.map((m,i)=>i!==idx?m:{...m,status:o[(o.indexOf(m.status)+1)%o.length]}));};
   const _wfInit=useRef(false);
-  useEffect(()=>{if(!_wfInit.current){_wfInit.current=true;return;}setProjects(prev=>prev.map(p=>p.id===project.id?{...p,workflow:wf}:p));},[wf]);
+  const _wfLastHash=useRef('');
+  useEffect(()=>{
+    if(!_wfInit.current){_wfInit.current=true;try{_wfLastHash.current=JSON.stringify(wf);}catch{}return;}
+    let h;try{h=JSON.stringify(wf);}catch{h='';}
+    if(h===_wfLastHash.current)return;
+    _wfLastHash.current=h;
+    setProjects(prev=>prev.map(p=>p.id===project.id?{...p,workflow:wf}:p));
+  },[wf]);
   const resetDates=()=>setWf(generateWorkflow(wf[0]?.startDate||new Date().toISOString().slice(0,10),project.designer));
   const completedCount=wf.filter(m=>m.status==="Completed").length;
   const pct=Math.round(completedCount/wf.length*100);

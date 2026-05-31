@@ -83,7 +83,14 @@ export default function App(){
   const [intake,setIntake]=useState(false);
   const [form,setForm]=useState({job:"",client:"",city:"",type:"Room Addition",designer:"Radovan",contract:"",notes:""});
 
-  const [teamMembers,setTeamMembers]=useState(DC_INIT);
+  const [teamMembers,setTeamMembers]=useState(()=>{
+    try{const s=localStorage.getItem('team-members');if(s){const p=JSON.parse(s);if(p&&typeof p==='object'&&Object.keys(p).length>0)return p;}}catch{}
+    return DC_INIT;
+  });
+  // Persist teamMembers to localStorage whenever they change
+  useEffect(()=>{
+    try{localStorage.setItem('team-members',JSON.stringify(teamMembers));}catch{}
+  },[teamMembers]);
   const [showTeamSettings,setShowTeamSettings]=useState(false);
   const [projects,setProjects]=useState(()=>{
     try{
@@ -141,7 +148,7 @@ export default function App(){
   const buildEmailExtra=p=>{const notes=parseNotes(p.notes||'');const city=getCityData(p.id,cityData);const hoa=getHOAData(p.id,hoaData);const ms=getProjectMilestones(p,paymentData);const pend=ms.find(m=>m.status==='Pending'&&m.amount>0);const ctr=p.contracts?.[0];return{address:notes.address,email:notes.email,phone:notes.phone,jurisdiction:city.jurisdiction,planCheckNumber:city.planCheckNumber,permitNumber:city.permitNumber,hoaName:hoa.hoaName,hoaContact:hoa.contactName,hoaPhone:hoa.contactPhone,hoaEmail:hoa.contactEmail,milestoneName:pend?.label||'',milestoneAmount:pend?'$'+Number(pend.amount).toLocaleString():'',estStart:ctr?.estStart||p.start||''};};
   const [analyseModal,setAnalyseModal]=useState(null);
   const handleAnalyseSave=(projectId,updates,milestones)=>{
-    setProjects(prev=>prev.map(p=>p.id===projectId?{...p,...updates}:p));
+    saveProjects(prev=>prev.map(p=>p.id===projectId?{...p,...updates}:p));
     if(milestones&&milestones.length>0){const u={...paymentData,[projectId]:milestones};setPaymentData(u);try{localStorage.setItem("payment-milestones",JSON.stringify(u));}catch{}}
     triggerSave();
   };
@@ -157,6 +164,8 @@ export default function App(){
   const paymentDataRef=useRef(paymentData);paymentDataRef.current=paymentData;
   const notifPrefsRef=useRef(notifPrefs);notifPrefsRef.current=notifPrefs;
   const _projInit=useRef(false);
+  const _syncTimer=useRef(null);
+  const _lastSyncHash=useRef('');
   const _remoteUpdate=useRef(false);
   const [realtimeStatus,setRealtimeStatus]=useState('connecting');
   useEffect(()=>{
@@ -177,17 +186,38 @@ export default function App(){
       })
       .catch(err=>console.error('[supabase] Failed to load projects from cloud:', err.message));
   },[]);
+  // localStorage persistence — fires on every render, cheap, no network
   useEffect(()=>{
     if(!_projInit.current){_projInit.current=true;return;}
-    if(_remoteUpdate.current){_remoteUpdate.current=false;return;}
     try{localStorage.setItem("project-state",JSON.stringify(projects));}catch{}
-    triggerSave();
-    fetch(`${API_BASE}/api/supabase/sync`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({projects}),
-    }).catch(err=>console.error('[supabase] Failed to sync projects to cloud:', err.message));
   },[projects]);
+
+  // Helper: push projects to Supabase cloud (debounced).
+  // Called explicitly from user-action paths only. Render alone never triggers a cloud push.
+  const pushProjectsToCloud=(nextProjects)=>{
+    if(_syncTimer.current) clearTimeout(_syncTimer.current);
+    _syncTimer.current=setTimeout(()=>{
+      _syncTimer.current=null;
+      triggerSave();
+      fetch(`${API_BASE}/api/supabase/sync`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({projects:nextProjects}),
+      }).catch(err=>console.error('[supabase] Failed to sync projects to cloud:', err.message));
+    },1000);
+  };
+
+  // saveProjects(updater) — same shape as setProjects, but also queues a cloud sync.
+  // Use this everywhere a USER ACTION mutates projects. Do NOT use for realtime echoes.
+  const saveProjects=(updater)=>{
+    // DEBUG: log who triggered the sync — remove after diagnosis
+    console.log('[saveProjects] triggered. Stack:\n', new Error().stack);
+    setProjects(prev=>{
+      const next=typeof updater==='function'?updater(prev):updater;
+      pushProjectsToCloud(next);
+      return next;
+    });
+  };
   useEffect(()=>{
     if(!sbClient||!session) return;
     const dbToApp=row=>({
@@ -268,24 +298,24 @@ export default function App(){
   const [gmailThreads,setGmailThreads]=useState([]);
   const [pendingThread,setPendingThread]=useState(null);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
-  const updateProjectNotes=(id,notes)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));triggerSave();};
-  const updateProjectName=(id,name)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
-  const updateProjectFields=(id,updates)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,...updates}:p));};
+  const updateProjectNotes=(id,notes)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));};
+  const updateProjectName=(id,name)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
+  const updateProjectFields=(id,updates)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,...updates}:p));};
   const togglePhaseFromDetail=(projectId,stepId)=>{
     const today=new Date().toISOString().slice(0,10);
-    setProjects(prev=>prev.map(p=>{
+    saveProjects(prev=>prev.map(p=>{
       if(String(p.id)!==String(projectId)) return p;
       const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:ph.status==='done'?'not_started':'done',dateCompleted:ph.status==='done'?null:today}:ph);
       const workflow=(Array.isArray(p.workflow)?p.workflow:[]).map(m=>m&&m.milestoneId===stepId?{...m,status:m.status==='Completed'?'Not Started':'Completed'}:m);
       return{...p,phases,workflow};
     }));
   };
-  const updateProjectType=(id,type)=>{setProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));triggerSave();};
+  const updateProjectType=(id,type)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));};
   const [pdfPanel,setPdfPanel]=useState(null);
   const saveContractPath=(projectId,filePath)=>{const u={...contractPaths,[projectId]:filePath};setContractPaths(u);localStorage.setItem("contract-paths",JSON.stringify(u));};
   const handleContractModuleUpdate=(updates)=>{
     if(!ctrP) return;
-    setProjects(prev=>prev.map(p=>p.id===ctrP.id?{...p,...updates}:p));
+    saveProjects(prev=>prev.map(p=>p.id===ctrP.id?{...p,...updates}:p));
   };
   const pdfInputRef=useRef(null);
   const [pendingPdfProject,setPendingPdfProject]=useState(null);
@@ -297,7 +327,7 @@ export default function App(){
   const toggleTaskComplete=(projectId,stepId,done)=>{
     if(!projectId||!stepId) return;
     const today=new Date().toISOString().slice(0,10);
-    setProjects(prev=>prev.map(p=>{
+    saveProjects(prev=>prev.map(p=>{
       if(String(p.id)!==String(projectId)) return p;
       const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:done?'done':'not_started',dateCompleted:done?today:null}:ph);
       const workflow=(Array.isArray(p.workflow)?p.workflow:[]).map(m=>m&&m.milestoneId===stepId?{...m,status:done?'Completed':'Not Started'}:m);
@@ -307,7 +337,15 @@ export default function App(){
 
   const MemberAv=({name,size})=><Av name={name} size={size} colorMap={teamMembers}/>;
   const [confirmDelete,setConfirmDelete]=useState(null);
-  const deleteProject=(id)=>{setProjects(prev=>prev.filter(p=>p.id!==id));setConfirmDelete(null);setSelP(null);setDetailProjectId(null);setTab('projects');};
+  const deleteProject=(id)=>{
+    saveProjects(prev=>prev.filter(p=>p.id!==id));
+    setConfirmDelete(null);setSelP(null);setDetailProjectId(null);setTab('projects');
+    // Remove from Supabase cloud
+    fetch(`${API_BASE}/api/supabase/projects/${encodeURIComponent(id)}`,{method:'DELETE'})
+      .then(r=>r.json())
+      .then(d=>{ if(d.error) console.error('[supabase] delete failed:',d.error); else console.log('[supabase] project deleted from cloud:',id); })
+      .catch(err=>console.error('[supabase] delete request failed:',err.message));
+  };
   const [currentUser,setCurrentUser]=useState(()=>{try{return localStorage.getItem("current-user")||null;}catch{return null;}});
   const [showUserSelect,setShowUserSelect]=useState(()=>{
     try{
@@ -450,7 +488,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       contractData.hiddenConditionFlags=contractData.hiddenConditionFlags||[];
       contractData.changeOrders=contractData.changeOrders||[];
       if(contractData.aiAnalysis) contractData.aiAnalysis.generatedAt=new Date().toISOString().slice(0,10);
-      setProjects(prev=>[...prev,{...project,contracts:[contractData]}]);
+      saveProjects(prev=>[...prev,{...project,contracts:[contractData]}]);
       setImporting(false);setShowImport(false);setTab("projects");
     }catch(e){const msg=e?.message||e?.error?.message||(typeof e==="string"?e:JSON.stringify(e,null,2));setImportError("API error: "+msg);setImporting(false);}
   }
@@ -468,17 +506,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
     </div></div>;
   };
 
-  const IM=()=>(
-    <div style={S.ov}><div style={S.mod}><div style={{marginBottom:20}}><div style={{fontSize:11,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace"}}>NEW PROJECT</div><div style={{fontSize:18,fontWeight:700,color:"#f0f0f0"}}>Job Intake Form</div></div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-      {[["Job Number","job","text"],["Client Name","client","text"],["City","city","text"],["Fee ($)","contract","number"]].map(([l,k,t])=><div key={k}><label style={S.label}>{l}</label><input type={t} style={S.input} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})}/></div>)}
-      <div><label style={S.label}>Type</label><select style={{...S.input,width:"100%"}} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{TS.slice(1).map(t=><option key={t}>{t}</option>)}</select></div>
-      <div><label style={S.label}>Designer</label><select style={{...S.input,width:"100%"}} value={form.designer} onChange={e=>setForm({...form,designer:e.target.value})}>{Object.keys(teamMembers).map(d=><option key={d}>{d}</option>)}</select></div>
-      <div style={{gridColumn:"1/-1"}}><label style={S.label}>Notes</label><textarea style={{...S.input,height:70,resize:"vertical"}} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
-    </div>
-    <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"flex-end"}}><button style={S.ghost} onClick={()=>setIntake(false)}>Cancel</button><button style={S.btn} onClick={()=>{setProjects(prev=>[...prev,{id:'TRU-'+String(prev.length+1).padStart(3,'0'),name:form.job||'New Project',client:form.client||'',city:form.city||'',type:form.type,designer:form.designer,status:'In Progress',phase:'Schematic',start:new Date().toISOString().slice(0,10),end:'',pct:0,stamp:'No',permit:'No',contract:parseFloat(form.contract)||0,invoiced:0,team:[],workflow:generateWorkflow(new Date().toISOString().slice(0,10),form.designer),contracts:[]}]);setIntake(false);}}>Save</button></div>
-    </div></div>
-  );
+  const IM=null;
 
   const Dash=()=>(
     <>
@@ -873,7 +901,17 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {selP&&<PM/>}
       {ctrP&&<ContractModule project={ctrP} onClose={()=>setCtrP(null)} onUpdate={handleContractModuleUpdate}/>}
       {emailModal&&<EmailModal project={emailModal} extra={buildEmailExtra(emailModal)} onClose={()=>setEmailModal(null)} onLog={saveEmailLog}/>}
-      {intake&&<IM/>}
+      {intake&&(
+    <div style={S.ov}><div style={S.mod}><div style={{marginBottom:20}}><div style={{fontSize:11,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace"}}>NEW PROJECT</div><div style={{fontSize:18,fontWeight:700,color:"#f0f0f0"}}>Job Intake Form</div></div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      {[["Job Number","job","text"],["Client Name","client","text"],["City","city","text"],["Fee ($)","contract","number"]].map(([l,k,t])=><div key={k}><label style={S.label}>{l}</label><input type={t} style={S.input} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})}/></div>)}
+      <div><label style={S.label}>Type</label><select style={{...S.input,width:"100%"}} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{TS.slice(1).map(t=><option key={t}>{t}</option>)}</select></div>
+      <div><label style={S.label}>Designer</label><select style={{...S.input,width:"100%"}} value={form.designer} onChange={e=>setForm({...form,designer:e.target.value})}>{Object.keys(teamMembers).map(d=><option key={d}>{d}</option>)}</select></div>
+      <div style={{gridColumn:"1/-1"}}><label style={S.label}>Notes</label><textarea style={{...S.input,height:70,resize:"vertical"}} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
+    </div>
+    <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"flex-end"}}><button style={S.ghost} onClick={()=>setIntake(false)}>Cancel</button><button style={S.btn} onClick={()=>{saveProjects(prev=>[...prev,{id:'TRU-'+String(prev.length+1).padStart(3,'0'),name:form.job||'New Project',client:form.client||'',city:form.city||'',type:form.type,designer:form.designer,status:'In Progress',phase:'Schematic',start:new Date().toISOString().slice(0,10),end:'',pct:0,stamp:'No',permit:'No',contract:parseFloat(form.contract)||0,invoiced:0,team:[],workflow:generateWorkflow(new Date().toISOString().slice(0,10),form.designer),contracts:[]}]);setIntake(false);}}>Save</button></div>
+    </div></div>
+      )}
       {showImport&&<ImportModal/>}
       {confirmDelete&&(
         <div style={S.ov} onClick={()=>setConfirmDelete(null)}>
@@ -891,9 +929,9 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           </div>
         </div>
       )}
-      {workflowP&&<WorkflowModal project={workflowP} projects={projects} setProjects={u=>{setProjects(u);triggerSave();}} teamMembers={teamMembers} onClose={()=>setWorkflowP(null)}/> }
+      {workflowP&&<WorkflowModal project={workflowP} projects={projects} setProjects={saveProjects} teamMembers={teamMembers} onClose={()=>setWorkflowP(null)}/> }
       {showTeamSettings&&<TeamSettingsModal teamMembers={teamMembers} setTeamMembers={setTeamMembers} onClose={()=>setShowTeamSettings(false)}/>}
-      {assignP&&<AssignModal project={assignP} projects={projects} setProjects={setProjects} teamMembers={teamMembers} onClose={()=>setAssignP(null)}/>}
+      {assignP&&<AssignModal project={assignP} projects={projects} setProjects={saveProjects} teamMembers={teamMembers} onClose={()=>setAssignP(null)}/>}
       <nav style={S.nav}>
         <div style={S.logo}>TRUPLANS</div>
         {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"],["inbox","Inbox"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
