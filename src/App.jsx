@@ -165,7 +165,6 @@ export default function App(){
   const notifPrefsRef=useRef(notifPrefs);notifPrefsRef.current=notifPrefs;
   const _projInit=useRef(false);
   const _syncTimer=useRef(null);
-  const _lastSyncHash=useRef('');
   const _remoteUpdate=useRef(false);
   const [realtimeStatus,setRealtimeStatus]=useState('connecting');
   useEffect(()=>{
@@ -210,8 +209,6 @@ export default function App(){
   // saveProjects(updater) — same shape as setProjects, but also queues a cloud sync.
   // Use this everywhere a USER ACTION mutates projects. Do NOT use for realtime echoes.
   const saveProjects=(updater)=>{
-    // DEBUG: log who triggered the sync — remove after diagnosis
-    console.log('[saveProjects] triggered. Stack:\n', new Error().stack);
     setProjects(prev=>{
       const next=typeof updater==='function'?updater(prev):updater;
       pushProjectsToCloud(next);
