@@ -252,8 +252,15 @@ const WEEK_BUCKETS=[
   {week:7,label:'HOA / Pre-Submission',      steps:['5.20','5.21']},
   {week:8,label:'City Submission',           steps:['5.22','5.23']},
 ];
+// Returns the date the 8-week SLA clock starts FROM.
+// Priority: siteMeasurementDate (the day we actually walked the site) > start (contract date, fallback).
+function slaAnchorDate(project){
+  if(!project) return null;
+  return project.siteMeasurementDate || project.start || null;
+}
+
 function getSLAStatus(project){
-  const startDate=project.start;
+  const startDate=slaAnchorDate(project);
   if(!startDate) return {zone:'none'};
   const today=new Date(); today.setHours(0,0,0,0);
   const start=new Date(startDate); start.setHours(0,0,0,0);
@@ -277,7 +284,11 @@ function getSLAStatus(project){
   return{zone,weekNum,effectiveDays,daysRemaining,isExternal};
 }
 
-function calculateZone(startDate){
+function calculateZone(startDateOrProject){
+  // Accept either a raw date string OR a project object (will use siteMeasurementDate||start)
+  const startDate = (startDateOrProject && typeof startDateOrProject==='object')
+    ? (startDateOrProject.siteMeasurementDate || startDateOrProject.start)
+    : startDateOrProject;
   if(!startDate) return{week:0,zone:'green',daysUntilTarget:SLA_DAYS};
   const today=new Date();today.setHours(0,0,0,0);
   const start=new Date(startDate);start.setHours(0,0,0,0);
@@ -704,7 +715,7 @@ export {
   API_BASE, ANTHROPIC_API_KEY, sbClient, fixDateYear,
   CONTRACT_TEMPLATE, NELSON_CONTRACT,
   PHASES_WILLIS_WORKFLOW, makeDefaultPhases, phaseMinor, CURRENT_PHASE_MAP, makeProjectPhases,
-  addDays, SLA_DAYS, EXTERNAL_IDS, WEEK_BUCKETS, getSLAStatus, calculateZone,
+  addDays, SLA_DAYS, EXTERNAL_IDS, WEEK_BUCKETS, getSLAStatus, calculateZone, slaAnchorDate,
   SEARCH_PRI, searchProjects, PROJECTS_INIT, PHASES, getStepDays,
   generateTasksFromProjects, getNotificationAlerts,
   STATUS_COLOR, PRIORITY_COLOR, DC_INIT,

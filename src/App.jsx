@@ -209,6 +209,8 @@ export default function App(){
   // saveProjects(updater) — same shape as setProjects, but also queues a cloud sync.
   // Use this everywhere a USER ACTION mutates projects. Do NOT use for realtime echoes.
   const saveProjects=(updater)=>{
+    // DEBUG: temporarily logging who triggers sync — remove once verified
+    console.log('[saveProjects] triggered. Stack:\n', new Error().stack);
     setProjects(prev=>{
       const next=typeof updater==='function'?updater(prev):updater;
       pushProjectsToCloud(next);
@@ -224,6 +226,10 @@ export default function App(){
       pct:Number(row.pct)||0, stamp:row.stamp||'', permit:row.permit||'',
       start:row.start_date||null, end:row.end_date||null, notes:row.notes||'',
       scopeOfWork:row.scope_of_work||[], workflow:row.workflow||[],
+      siteMeasurementDate: row.site_measurement_date || null,
+      team:        Array.isArray(row.team) ? row.team : [],
+      teamRoles:   row.team_roles  || {},
+      assignNote:  row.assign_note || '',
     });
     const channel=sbClient.channel('projects-realtime')
       .on('postgres_changes',{event:'*',schema:'public',table:'projects'},payload=>{

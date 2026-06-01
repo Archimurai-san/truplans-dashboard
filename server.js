@@ -56,6 +56,10 @@ function toDb(p) {
     notes:         p.notes         || null,
     scope_of_work: p.scopeOfWork   || [],
     workflow:      p.workflow       || [],
+    site_measurement_date: p.siteMeasurementDate || null,
+    team:          Array.isArray(p.team) ? p.team : [],
+    team_roles:    p.teamRoles      || {},
+    assign_note:   p.assignNote     || null,
   };
 }
 
@@ -79,7 +83,10 @@ function fromDb(row) {
     notes:        row.notes        || '',
     scopeOfWork:  row.scope_of_work || [],
     workflow:     row.workflow      || [],
-    team:         [],
+    siteMeasurementDate: row.site_measurement_date || null,
+    team:         Array.isArray(row.team) ? row.team : [],
+    teamRoles:    row.team_roles    || {},
+    assignNote:   row.assign_note   || '',
     contracts:    [],
   };
 }

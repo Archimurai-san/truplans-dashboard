@@ -400,9 +400,9 @@ ${pdfTxt.slice(0,8000)}`}]});
 
       {/* PHASES */}
       {ctab==="phases"&&(()=>{
-        const sd=project.startDate||project.start||new Date().toISOString().slice(0,10);
+        const sd=project.siteMeasurementDate||project.startDate||project.start||new Date().toISOString().slice(0,10);
         const td=project.targetDate||addDays(sd,56);
-        const{week,zone,daysUntilTarget}=calculateZone(sd);
+        const{week,zone,daysUntilTarget}=calculateZone(project);
         const iPhases=phases.filter(p=>!["5.21","5.22","5.23"].includes(p.id));
         const ePhases=phases.filter(p=>["5.21","5.22","5.23"].includes(p.id));
         const doneCt=iPhases.filter(p=>p.status==="done").length;

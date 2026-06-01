@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { ContractModule } from "../../contract-analyser/v1.0/index.jsx";
 import { matchProject } from "../../email-agent/v1.0/index.jsx";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { S, fmt$, doOpenPath, parseNotes, Av, Sb, Pb, ST, SLABadge, getSLAStatus, calculateZone, STATUS_COLOR, PRIORITY_COLOR, DC_INIT, WORKFLOW_MILESTONES, generateWorkflow, TEAM_ROLES, PALETTE, PHASES_WILLIS_WORKFLOW, makeDefaultPhases, addDays, EXTERNAL_IDS, WEEK_BUCKETS, getProjectMilestones, CITY_STATUS_OPTIONS, ROUND_STATUS, CITY_STATUS_BADGE, CITY_STATUS_DOT, CITY_DEFAULTS, CITY_EMPTY, getCityData, HOA_STATUS_OPTIONS, HOA_DOCS, HOA_STATUS_BADGE, HOA_STATUS_DOT, HOA_REQUIRED_IDS, HOA_EMPTY, getHOAData, CONTRACT_TEMPLATE, NELSON_CONTRACT, fixDateYear, API_BASE, ANTHROPIC_API_KEY, dbt, sbClient, PHASES } from "../../../shared/core.jsx";
+import { S, fmt$, doOpenPath, parseNotes, Av, Sb, Pb, ST, SLABadge, getSLAStatus, calculateZone, slaAnchorDate, STATUS_COLOR, PRIORITY_COLOR, DC_INIT, WORKFLOW_MILESTONES, generateWorkflow, TEAM_ROLES, PALETTE, PHASES_WILLIS_WORKFLOW, makeDefaultPhases, addDays, EXTERNAL_IDS, WEEK_BUCKETS, getProjectMilestones, CITY_STATUS_OPTIONS, ROUND_STATUS, CITY_STATUS_BADGE, CITY_STATUS_DOT, CITY_DEFAULTS, CITY_EMPTY, getCityData, HOA_STATUS_OPTIONS, HOA_DOCS, HOA_STATUS_BADGE, HOA_STATUS_DOT, HOA_REQUIRED_IDS, HOA_EMPTY, getHOAData, CONTRACT_TEMPLATE, NELSON_CONTRACT, fixDateYear, API_BASE, ANTHROPIC_API_KEY, dbt, sbClient, PHASES } from "../../../shared/core.jsx";
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
 
@@ -350,6 +350,11 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
   const [editNotes,setEditNotes]=useState(project.notes||'');
   const [renaming,setRenaming]=useState(false);
   const [renameVal,setRenameVal]=useState(project.name);
+  const [editingDate,setEditingDate]=useState(false);
+  const saveSiteMeasurementDate=(newDate)=>{
+    onUpdateFields?.(project.id,{siteMeasurementDate:newDate||null});
+    setEditingDate(false);
+  };
   const saveName=()=>{if(renameVal.trim()&&renameVal.trim()!==project.name)onUpdateName?.(project.id,renameVal.trim());setRenaming(false);};
   const milestones=getProjectMilestones(project,paymentData);
   const {phone,email,docusign,address}=parseNotes(project.notes||'');
@@ -405,6 +410,46 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           )}
           <div style={{fontSize:12,color:'var(--text-muted)'}}>{project.client}{project.city&&` · ${project.city}`}</div>
         </div>
+        {(()=>{
+          const anchor=slaAnchorDate(project);
+          const hasDate=!!project.siteMeasurementDate;
+          const fmtDate=(d)=>{if(!d)return'';const dt=new Date(d);if(isNaN(dt))return d;return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});};
+          let countdown=null;
+          if(anchor){
+            const today=new Date();today.setHours(0,0,0,0);
+            const start=new Date(anchor);start.setHours(0,0,0,0);
+            const days=Math.floor((today-start)/86400000);
+            if(days>=0){
+              const weekNum=Math.max(1,Math.ceil(days/7));
+              const weeksRemaining=Math.max(0,8-weekNum);
+              const zoneColor=weekNum<=6?'#27ae60':weekNum<=8?'#f0a842':'#e74c3c';
+              countdown=<div style={{fontSize:10,color:zoneColor,fontFamily:'monospace',marginTop:2,letterSpacing:'1px'}}>WEEK {weekNum} OF 8 · {weeksRemaining} LEFT</div>;
+            }else{
+              countdown=<div style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',marginTop:2,letterSpacing:'1px'}}>FUTURE · {Math.abs(days)}d AWAY</div>;
+            }
+          }
+          return(
+            <div style={{flexShrink:0,textAlign:'right',minWidth:170}}>
+              <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'2px',marginBottom:2}}>PROJECT START DATE</div>
+              {editingDate?(
+                <input
+                  type="date"
+                  autoFocus
+                  defaultValue={project.siteMeasurementDate||project.start||''}
+                  onBlur={e=>saveSiteMeasurementDate(e.target.value)}
+                  onKeyDown={e=>{if(e.key==='Enter')saveSiteMeasurementDate(e.target.value);if(e.key==='Escape')setEditingDate(false);}}
+                  style={{...S.input,fontSize:13,padding:'3px 6px',width:140}}
+                />
+              ):(
+                <div onClick={()=>setEditingDate(true)} style={{cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}} title="Click to set/change site measurement date">
+                  <span style={{fontSize:14,fontWeight:600,color:hasDate?'var(--text-body)':'var(--text-faint)'}}>{hasDate?fmtDate(project.siteMeasurementDate):(anchor?`${fmtDate(anchor)} (contract)`:'— set date —')}</span>
+                  <span style={{fontSize:10,color:'var(--text-faint)'}}>✎</span>
+                </div>
+              )}
+              {countdown}
+            </div>
+          );
+        })()}
         <SLABadge project={project}/>
         <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
           <button onClick={onDelete} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #e74c3c',color:'#e74c3c',background:'none'}}>Delete</button>
