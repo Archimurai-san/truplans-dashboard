@@ -289,6 +289,54 @@ app.delete('/api/supabase/projects/:id', async (req, res) => {
   }
 });
 
+app.post('/api/supabase/projects/rename', async (req, res) => {
+  const { oldId, newId } = req.body || {};
+  console.log('[supabase] POST /api/supabase/projects/rename — from:', oldId, 'to:', newId);
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  if (!oldId || !newId) return res.status(400).json({ error: 'oldId and newId are required' });
+  if (String(oldId) === String(newId)) return res.status(400).json({ error: 'oldId and newId are the same' });
+  try {
+    // 1. Verify the new ID isn't already taken
+    const { data: existing, error: checkErr } = await supabase.from('projects').select('id').eq('id', String(newId)).maybeSingle();
+    if (checkErr) {
+      console.error('[supabase] rename check error:', checkErr.message);
+      return res.status(500).json({ error: 'Failed to check new ID: ' + checkErr.message });
+    }
+    if (existing) {
+      return res.status(409).json({ error: `Job number "${newId}" is already in use by another project` });
+    }
+    // 2. Fetch the existing row
+    const { data: oldRow, error: fetchErr } = await supabase.from('projects').select('*').eq('id', String(oldId)).maybeSingle();
+    if (fetchErr) {
+      console.error('[supabase] rename fetch error:', fetchErr.message);
+      return res.status(500).json({ error: 'Failed to fetch old project: ' + fetchErr.message });
+    }
+    if (!oldRow) {
+      return res.status(404).json({ error: `Project "${oldId}" not found in cloud` });
+    }
+    // 3. Insert a copy with the new ID
+    const newRow = { ...oldRow, id: String(newId) };
+    const { error: insertErr } = await supabase.from('projects').insert(newRow);
+    if (insertErr) {
+      console.error('[supabase] rename insert error:', insertErr.message);
+      return res.status(500).json({ error: 'Failed to insert new project: ' + insertErr.message });
+    }
+    // 4. Delete the old row
+    const { error: deleteErr } = await supabase.from('projects').delete().eq('id', String(oldId));
+    if (deleteErr) {
+      // Rollback: try to delete the new row we just created
+      console.error('[supabase] rename delete error (rolling back):', deleteErr.message);
+      await supabase.from('projects').delete().eq('id', String(newId));
+      return res.status(500).json({ error: 'Failed to delete old project; new one rolled back: ' + deleteErr.message });
+    }
+    console.log('[supabase] rename ok:', oldId, '->', newId);
+    res.json({ ok: true, oldId, newId });
+  } catch (err) {
+    console.error('[supabase] rename exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/gmail/auth', (req, res) => {
   const oauth2 = makeOAuth2Client();
   if (!oauth2) return res.status(500).send('Gmail credentials not configured');

@@ -314,6 +314,45 @@ export default function App(){
     }));
   };
   const updateProjectType=(id,type)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));};
+
+  // Rename a project's ID (e.g. TRU-021 -> 656). Migrates linked data (payment/city/HOA) under the new ID,
+  // updates the project's id field, and migrates Supabase row server-side via /api/supabase/projects/rename.
+  const changeJobNumber=async(oldId,newId)=>{
+    oldId=String(oldId||'').trim(); newId=String(newId||'').trim();
+    if(!oldId||!newId) return {ok:false,error:'Both old and new job numbers are required'};
+    if(oldId===newId) return {ok:false,error:'New job number is the same as the old one'};
+    // Local conflict check
+    if(projects.some(p=>String(p.id)===newId)) return {ok:false,error:`Job number "${newId}" is already in use`};
+    try{
+      // 1. Call server to migrate the cloud row (copy + delete)
+      const resp=await fetch(`${API_BASE}/api/supabase/projects/rename`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({oldId,newId}),
+      });
+      const data=await resp.json();
+      if(!resp.ok||data.error) return {ok:false,error:data.error||'Cloud rename failed'};
+      // 2. Migrate local state: project's id field
+      // Use plain setProjects (not saveProjects) — cloud is already updated, no need to re-sync
+      _remoteUpdate.current=true;
+      setProjects(prev=>prev.map(p=>String(p.id)===oldId?{...p,id:newId}:p));
+      // 3. Migrate linked data: paymentData / cityData / hoaData
+      const migrateMap=(map,setter,storageKey)=>{
+        if(map[oldId]===undefined) return;
+        const next={...map,[newId]:map[oldId]};
+        delete next[oldId];
+        setter(next);
+        try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}
+      };
+      migrateMap(paymentData,setPaymentData,'payment-milestones');
+      migrateMap(cityData,setCityData,'city-submissions');
+      migrateMap(hoaData,setHoaData,'hoa-submissions');
+      triggerSave();
+      return {ok:true,newId};
+    }catch(err){
+      return {ok:false,error:err.message||'Network error during rename'};
+    }
+  };
   const [pdfPanel,setPdfPanel]=useState(null);
   const saveContractPath=(projectId,filePath)=>{const u={...contractPaths,[projectId]:filePath};setContractPaths(u);localStorage.setItem("contract-paths",JSON.stringify(u));};
   const handleContractModuleUpdate=(updates)=>{
@@ -1036,6 +1075,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onTogglePhase={togglePhaseFromDetail}
             onAnalyse={()=>setAnalyseModal(detailProject)}
             onUpdateFields={updateProjectFields}
+            onChangeJobNumber={changeJobNumber}
             threads={gmailThreads}
             onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />

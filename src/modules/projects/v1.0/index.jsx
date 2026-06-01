@@ -346,11 +346,25 @@ Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if no
 {"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields,onChangeJobNumber}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
   const [renaming,setRenaming]=useState(false);
   const [renameVal,setRenameVal]=useState(project.name);
   const [editingDate,setEditingDate]=useState(false);
+  const [renumberOpen,setRenumberOpen]=useState(false);
+  const [renumberVal,setRenumberVal]=useState('');
+  const [renumberErr,setRenumberErr]=useState('');
+  const [renumberBusy,setRenumberBusy]=useState(false);
+  const doRenumber=async()=>{
+    setRenumberErr('');
+    const trimmed=(renumberVal||'').trim();
+    if(!trimmed){setRenumberErr('Please enter a new job number');return;}
+    setRenumberBusy(true);
+    const r=await(onChangeJobNumber?.(project.id,trimmed)??{ok:false,error:'No handler'});
+    setRenumberBusy(false);
+    if(r.ok){setRenumberOpen(false);setRenumberVal('');}
+    else setRenumberErr(r.error||'Failed to change job number');
+  };
   const saveSiteMeasurementDate=(newDate)=>{
     onUpdateFields?.(project.id,{siteMeasurementDate:newDate||null});
     setEditingDate(false);
@@ -389,7 +403,15 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
       <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:24,flexWrap:'wrap'}}>
         <button onClick={onBack} style={{...S.ghost,padding:'6px 14px',fontSize:11,flexShrink:0}}>← Projects</button>
         <div style={{flex:1,minWidth:200}}>
-          <div style={{fontSize:10,color:'var(--accent)',fontFamily:'monospace',letterSpacing:'2px'}}>{project.id}{project.type&&` · ${project.type}`}</div>
+          <div style={{fontSize:10,color:'var(--accent)',fontFamily:'monospace',letterSpacing:'2px'}}>
+            <span>{project.id}</span>
+            <span
+              onClick={()=>{setRenumberVal(project.id);setRenumberErr('');setRenumberOpen(true);}}
+              style={{cursor:'pointer',marginLeft:6,opacity:0.6}}
+              title="Change job number"
+            >✎</span>
+            {project.type&&` · ${project.type}`}
+          </div>
           {renaming?(
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2,marginBottom:2}}>
               <input
@@ -647,6 +669,35 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           })()}
         </div>
       </div>
+      {renumberOpen&&(
+        <div style={S.ov} onClick={()=>!renumberBusy&&setRenumberOpen(false)}>
+          <div style={{...S.mod,maxWidth:480}} onClick={e=>e.stopPropagation()}>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:'#e94560',letterSpacing:'2px',fontFamily:'monospace'}}>CHANGE JOB #</div>
+              <div style={{fontSize:18,fontWeight:700,color:'var(--text-body)'}}>Renumber Project</div>
+              <div style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>Current: <span style={{fontFamily:'monospace',color:'var(--accent)'}}>{project.id}</span> · {project.name}</div>
+            </div>
+            <label style={S.label}>New Job Number</label>
+            <input
+              autoFocus
+              value={renumberVal}
+              onChange={e=>setRenumberVal(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')doRenumber();if(e.key==='Escape'&&!renumberBusy)setRenumberOpen(false);}}
+              placeholder="e.g. 656"
+              disabled={renumberBusy}
+              style={{...S.input,width:'100%',fontFamily:'monospace',fontSize:14}}
+            />
+            <div style={{fontSize:11,color:'var(--text-muted)',marginTop:8,lineHeight:1.4}}>
+              All linked data (payments, city, HOA) will move to the new number. The change applies immediately on cloud and across all computers.
+            </div>
+            {renumberErr&&<div style={{fontSize:12,color:'#e94560',marginTop:10,padding:'8px 10px',background:'rgba(233,69,96,0.1)',borderRadius:4}}>{renumberErr}</div>}
+            <div style={{marginTop:18,display:'flex',gap:8,justifyContent:'flex-end'}}>
+              <button style={S.ghost} onClick={()=>setRenumberOpen(false)} disabled={renumberBusy}>Cancel</button>
+              <button style={S.btn} onClick={doRenumber} disabled={renumberBusy}>{renumberBusy?'Saving…':'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
