@@ -209,8 +209,6 @@ export default function App(){
   // saveProjects(updater) — same shape as setProjects, but also queues a cloud sync.
   // Use this everywhere a USER ACTION mutates projects. Do NOT use for realtime echoes.
   const saveProjects=(updater)=>{
-    // DEBUG: temporarily logging who triggers sync — remove once verified
-    console.log('[saveProjects] triggered. Stack:\n', new Error().stack);
     setProjects(prev=>{
       const next=typeof updater==='function'?updater(prev):updater;
       pushProjectsToCloud(next);
