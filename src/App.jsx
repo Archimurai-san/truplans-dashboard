@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { LAMap, SoCalOverview } from './components/SoCalMap.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import {
   API_BASE, ANTHROPIC_API_KEY, sbClient, fixDateYear,
@@ -599,10 +600,11 @@ Set included:true/false per contract. Extract real payment milestones with amoun
         <div onClick={()=>{setFSLA('red');setTab('projects');}} style={{...S.metric,borderTopWidth:"var(--kpi-top-w)",borderTopStyle:"solid",borderTopColor:"var(--sla-red-text)",cursor:"pointer"}} title="Click to filter projects"><div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace",marginBottom:8}}>Red Zone</div><div style={{fontSize:22,fontWeight:700,color:"var(--sla-red-text)",fontFamily:"monospace"}}>{slaRed}</div></div>
         <div onClick={()=>{setFSLA('amber');setTab('projects');}} style={{...S.metric,borderTopWidth:"var(--kpi-top-w)",borderTopStyle:"solid",borderTopColor:"var(--status-hold-text)",cursor:"pointer"}} title="Click to filter projects"><div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace",marginBottom:8}}>Amber</div><div style={{fontSize:22,fontWeight:700,color:"var(--status-hold-text)",fontFamily:"monospace"}}>{slaAmber}</div></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:24}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         <div style={S.card}><ST>Designer Workload</ST>{Object.keys(teamMembers).map(d=>{const dp=projects.filter(p=>p.designer===d&&p.status==="In Progress");return<div key={d} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><MemberAv name={d}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"var(--text-body)"}}>{d}</span><span style={{fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}>{dp.length} active</span></div><Pb pct={dp.length/5*100} color={teamMembers[d]}/></div></div>;})}</div>
-        <div style={S.card}><ST>Phase Distribution</ST>{PHASES.map(ph=>{const n=projects.filter(p=>p.phase===ph).length;if(!n)return null;return<div key={ph} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{fontSize:10,color:"var(--text-muted)",minWidth:110,fontFamily:"monospace"}}>{ph}</div><div style={{flex:1,background:"var(--bg-page)",borderRadius:99,height:6,overflow:"hidden"}}><div style={{height:"100%",width:(n/projects.length*100)+"%",background:"var(--accent)",borderRadius:99}}/></div><div style={{fontSize:11,color:"var(--accent)",fontFamily:"monospace",minWidth:16,textAlign:"right"}}>{n}</div></div>;})}</div>
+        <div style={{...S.card,display:"flex",flexDirection:"column",minHeight:340}}><ST>Greater LA — Project Map</ST><Suspense fallback={<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><LAMap projects={projects}/></Suspense></div>
       </div>
+      <div style={{...S.card,marginBottom:24}}><ST>Southern California — Project Overview</ST><Suspense fallback={<div style={{height:320,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><SoCalOverview projects={projects}/></Suspense></div>
       <div style={S.card}><ST>Open Tasks by Priority</ST>
         <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
           {[["High Priority","var(--sla-red-text)","Tasks overdue / at risk","High"],["Medium Priority","var(--status-hold-text)","Tasks due soon","Medium"],["Low Priority","var(--status-done-text)","Tasks on track","Low"]].map(([label,color,sub,pri])=>(
