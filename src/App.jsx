@@ -134,7 +134,13 @@ export default function App(){
       return saved;
     }catch{return {};}
   });
-  const savePaymentData=(projectId,ms)=>{const u={...paymentData,[projectId]:ms};setPaymentData(u);try{localStorage.setItem("payment-milestones",JSON.stringify(u));}catch{}triggerSave();};
+  const savePaymentData=(projectId,ms)=>{
+    const u={...paymentData,[projectId]:ms};
+    setPaymentData(u);
+    try{localStorage.setItem("payment-milestones",JSON.stringify(u));}catch{}
+    const inv=ms.filter(m=>m.status==='Invoiced'||m.status==='Collected').reduce((a,m)=>a+(m.amount||0),0);
+    saveProjects(prev=>prev.map(p=>String(p.id)===String(projectId)?{...p,invoiced:inv,paymentMilestones:ms}:p));
+  };
   const [paymentPanel,setPaymentPanel]=useState(null);
   const [cityData,setCityData]=useState(()=>{try{return JSON.parse(localStorage.getItem("city-submissions")||"{}");}catch{return {};}});
   const saveCityData=(projectId,d)=>{const u={...cityData,[projectId]:d};setCityData(u);try{localStorage.setItem("city-submissions",JSON.stringify(u));}catch{}triggerSave();};
@@ -142,6 +148,8 @@ export default function App(){
   const [hoaData,setHoaData]=useState(()=>{try{return JSON.parse(localStorage.getItem("hoa-submissions")||"{}");}catch{return {};}});
   const saveHoaData=(projectId,d)=>{const u={...hoaData,[projectId]:d};setHoaData(u);try{localStorage.setItem("hoa-submissions",JSON.stringify(u));}catch{}triggerSave();};
   const [hoaPanel,setHoaPanel]=useState(null);
+  const [taskInstructions,setTaskInstructions]=useState([]);
+  const [howToPanel,setHowToPanel]=useState(null);
   const [emailLog,setEmailLog]=useState(()=>{try{return JSON.parse(localStorage.getItem("email-log")||"{}");}catch{return {};}});
   const saveEmailLog=(projectId,entry)=>{const u={...emailLog,[projectId]:[...(emailLog[projectId]||[]),entry].slice(0,50)};setEmailLog(u);try{localStorage.setItem("email-log",JSON.stringify(u));}catch{}};
   const [emailModal,setEmailModal]=useState(null);
@@ -149,7 +157,7 @@ export default function App(){
   const [analyseModal,setAnalyseModal]=useState(null);
   const handleAnalyseSave=(projectId,updates,milestones)=>{
     saveProjects(prev=>prev.map(p=>p.id===projectId?{...p,...updates}:p));
-    if(milestones&&milestones.length>0){const u={...paymentData,[projectId]:milestones};setPaymentData(u);try{localStorage.setItem("payment-milestones",JSON.stringify(u));}catch{}}
+    if(milestones&&milestones.length>0) savePaymentData(projectId,milestones);
     triggerSave();
   };
 
@@ -176,14 +184,33 @@ export default function App(){
           const newFromInit=PROJECTS_INIT.filter(p=>!remoteIds.has(p.id));
           setProjects(prev=>{
             const prevById=new Map(prev.map(p=>[p.id,p]));
-            const dataMerged=data.map(d=>{const local=prevById.get(d.id);return local?{...d,team:local.team||d.team||[],teamRoles:local.teamRoles||d.teamRoles||{},assignNote:local.assignNote||d.assignNote||'',contracts:local.contracts||d.contracts||[]}:{...d,team:d.team||[],contracts:d.contracts||[]};});
+            const dataMerged=data.map(d=>{const local=prevById.get(d.id);return local?{...d,team:local.team||d.team||[],teamRoles:local.teamRoles||d.teamRoles||{},assignNote:local.assignNote||d.assignNote||'',contracts:(Array.isArray(d.contracts)&&d.contracts.length>0)?d.contracts:(local.contracts||[])}:{...d,team:d.team||[],contracts:d.contracts||[]};});
             const merged=[...dataMerged,...newFromInit];
             _projInit.current=false;
+            return merged;
+          });
+          setPaymentData(prev=>{
+            const merged={...prev};
+            let changed=false;
+            for(const p of data){
+              if(Array.isArray(p.paymentMilestones)&&p.paymentMilestones.length>0){
+                merged[p.id]=p.paymentMilestones;
+                changed=true;
+              }
+            }
+            if(!changed) return prev;
+            try{localStorage.setItem("payment-milestones",JSON.stringify(merged));}catch{}
             return merged;
           });
         }
       })
       .catch(err=>console.error('[supabase] Failed to load projects from cloud:', err.message));
+  },[]);
+  useEffect(()=>{
+    fetch(`${API_BASE}/api/supabase/task-instructions`)
+      .then(r=>r.json())
+      .then(data=>{if(!data.error&&Array.isArray(data))setTaskInstructions(data);})
+      .catch(err=>console.error('[supabase] Failed to load task instructions:',err.message));
   },[]);
   // localStorage persistence — fires on every render, cheap, no network
   useEffect(()=>{
@@ -356,6 +383,23 @@ export default function App(){
   const handleContractModuleUpdate=(updates)=>{
     if(!ctrP) return;
     saveProjects(prev=>prev.map(p=>p.id===ctrP.id?{...p,...updates}:p));
+    if(Array.isArray(updates.contracts)){
+      const ctr=updates.contracts.find(c=>Array.isArray(c.paymentMilestones)&&c.paymentMilestones.length>0);
+      if(ctr){
+        const existing=getProjectMilestones(ctrP,paymentData);
+        if(existing.length>0){
+          let changed=false;
+          const synced=existing.map((m,i)=>{
+            const cm=ctr.paymentMilestones[i];
+            if(!cm) return m;
+            if(cm.paid&&m.status!=='Collected'){changed=true;return{...m,status:'Collected'};}
+            if(!cm.paid&&m.status==='Collected'){changed=true;return{...m,status:'Pending'};}
+            return m;
+          });
+          if(changed) savePaymentData(ctrP.id,synced);
+        }
+      }
+    }
   };
   const pdfInputRef=useRef(null);
   const [pendingPdfProject,setPendingPdfProject]=useState(null);
@@ -763,10 +807,111 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       </div>
     </div>
   );
+  const getTaskInstruction=(stepId,city)=>{
+    if(!stepId) return null;
+    const match=taskInstructions.find(r=>r.workflow_step_id===stepId&&r.city===city);
+    if(match) return match;
+    return taskInstructions.find(r=>r.workflow_step_id===stepId&&!r.city)||null;
+  };
+  const HowToPanel=({instr,taskDesc,onClose,startEdit=false})=>{
+    const [editing,setEditing]=useState(startEdit);
+    const [draftBody,setDraftBody]=useState(instr.body_text||'');
+    const [draftChecklist,setDraftChecklist]=useState(Array.isArray(instr.checklist)?instr.checklist:[]);
+    const [draftLinks,setDraftLinks]=useState(Array.isArray(instr.links)?instr.links:[]);
+    const [saving,setSaving]=useState(false);
+    const userEmail=session?.user?.email||currentUser||'';
+    const save=async()=>{
+      setSaving(true);
+      try{
+        const r=await fetch(`${API_BASE}/api/supabase/task-instructions/${instr.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({body_text:draftBody,checklist:draftChecklist,links:draftLinks,last_updated_by:userEmail})});
+        const updated=await r.json();
+        if(!updated.error){
+          setTaskInstructions(prev=>prev.map(x=>x.id===updated.id?updated:x));
+          setHowToPanel(p=>({...p,instr:updated,startEdit:false}));
+          setEditing(false);
+        }
+      }catch(e){console.error('[howto] save:',e);}
+      setSaving(false);
+    };
+    const cancel=()=>{setEditing(false);setDraftBody(instr.body_text||'');setDraftChecklist(Array.isArray(instr.checklist)?instr.checklist:[]);setDraftLinks(Array.isArray(instr.links)?instr.links:[]);};
+    return(
+      <div style={{position:'fixed',inset:0,zIndex:999,display:'flex',alignItems:'center',justifyContent:'center'}} onClick={onClose}>
+        <div style={{background:'var(--bg-card)',border:'1px solid var(--border-primary)',borderRadius:8,width:520,maxWidth:'90vw',maxHeight:'80vh',overflowY:'auto',padding:'28px 32px',boxSizing:'border-box',boxShadow:'0 8px 32px rgba(0,0,0,0.4)'}} onClick={e=>e.stopPropagation()}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
+            <div>
+              <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:4}}>{instr.workflow_step_id} — HOW TO</div>
+              <div style={{fontSize:16,fontWeight:700,color:'var(--text-primary)'}}>{instr.step_name||taskDesc}</div>
+              {instr.last_updated_by&&<div style={{fontSize:9,color:'var(--text-ghost)',fontFamily:'monospace',marginTop:4}}>v{instr.version} · by {instr.last_updated_by}</div>}
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              {!editing&&<button onClick={()=>setEditing(true)} style={{background:'none',border:'1px solid var(--border-secondary)',color:'var(--text-muted)',cursor:'pointer',fontSize:10,fontFamily:'monospace',padding:'3px 10px',borderRadius:3}}>Edit</button>}
+              <button onClick={onClose} style={{background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',fontSize:18,lineHeight:1,padding:'0 0 0 4px'}}>✕</button>
+            </div>
+          </div>
+          {editing?(
+            <div>
+              <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:6}}>Body Text</div>
+              <textarea value={draftBody} onChange={e=>setDraftBody(e.target.value)} style={{width:'100%',minHeight:100,background:'var(--bg-input,#1a1a2e)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'8px 10px',borderRadius:4,fontSize:11,fontFamily:'monospace',resize:'vertical',boxSizing:'border-box',outline:'none',marginBottom:16}}/>
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:8}}>Checklist</div>
+                {draftChecklist.map((item,i)=>(
+                  <div key={i} style={{display:'flex',gap:6,marginBottom:6}}>
+                    <input value={item} onChange={e=>{const c=[...draftChecklist];c[i]=e.target.value;setDraftChecklist(c);}} style={{flex:1,background:'var(--bg-input,#1a1a2e)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'4px 8px',borderRadius:3,fontSize:11,outline:'none'}}/>
+                    <button onClick={()=>setDraftChecklist(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'var(--sla-red-text,#e74c3c)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>✕</button>
+                  </div>
+                ))}
+                <button onClick={()=>setDraftChecklist(prev=>[...prev,''])} style={{background:'none',border:'1px dashed var(--border-secondary)',color:'var(--text-muted)',cursor:'pointer',fontSize:10,fontFamily:'monospace',padding:'3px 10px',borderRadius:3,marginTop:2}}>+ Add item</button>
+              </div>
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:8}}>Links</div>
+                {draftLinks.map((lk,i)=>(
+                  <div key={i} style={{display:'flex',gap:6,marginBottom:6}}>
+                    <input placeholder="Label" value={lk.label||''} onChange={e=>{const l=[...draftLinks];l[i]={...l[i],label:e.target.value};setDraftLinks(l);}} style={{flex:'0 0 130px',background:'var(--bg-input,#1a1a2e)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'4px 8px',borderRadius:3,fontSize:11,outline:'none'}}/>
+                    <input placeholder="URL" value={lk.url||''} onChange={e=>{const l=[...draftLinks];l[i]={...l[i],url:e.target.value};setDraftLinks(l);}} style={{flex:1,background:'var(--bg-input,#1a1a2e)',border:'1px solid var(--border-secondary)',color:'var(--text-primary)',padding:'4px 8px',borderRadius:3,fontSize:11,outline:'none'}}/>
+                    <button onClick={()=>setDraftLinks(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'var(--sla-red-text,#e74c3c)',cursor:'pointer',fontSize:14,padding:'0 4px'}}>✕</button>
+                  </div>
+                ))}
+                <button onClick={()=>setDraftLinks(prev=>[...prev,{label:'',url:''}])} style={{background:'none',border:'1px dashed var(--border-secondary)',color:'var(--text-muted)',cursor:'pointer',fontSize:10,fontFamily:'monospace',padding:'3px 10px',borderRadius:3,marginTop:2}}>+ Add link</button>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={save} disabled={saving} style={{background:'var(--accent)',color:'#fff',border:'none',padding:'6px 18px',borderRadius:4,fontSize:11,cursor:'pointer',fontWeight:700,fontFamily:'monospace'}}>{saving?'Saving…':'Save'}</button>
+                <button onClick={cancel} style={{background:'none',border:'1px solid var(--border-secondary)',color:'var(--text-muted)',cursor:'pointer',fontSize:11,fontFamily:'monospace',padding:'6px 14px',borderRadius:4}}>Cancel</button>
+              </div>
+            </div>
+          ):(
+            <>
+              {instr.body_text&&<p style={{fontSize:12,color:'var(--text-body)',lineHeight:1.6,margin:'0 0 20px 0'}}>{instr.body_text}</p>}
+              {Array.isArray(instr.checklist)&&instr.checklist.length>0&&(
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:8}}>Checklist</div>
+                  {instr.checklist.map((item,i)=>(
+                    <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:6}}>
+                      <span style={{color:'var(--accent)',fontFamily:'monospace',fontSize:11,marginTop:1}}>☐</span>
+                      <span style={{fontSize:11,color:'var(--text-body)',lineHeight:1.5}}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {Array.isArray(instr.links)&&instr.links.length>0&&(
+                <div>
+                  <div style={{fontSize:10,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:8}}>Links</div>
+                  {instr.links.map((lk,i)=>(
+                    <div key={i} style={{marginBottom:6}}>
+                      <a href={lk.url} target="_blank" rel="noreferrer" style={{fontSize:11,color:'var(--accent)',textDecoration:'none',fontFamily:'monospace'}}>{lk.label||lk.url}</a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
   const Tasks=()=>{
     try{
       const hasFilters=fTD!=="All"||fTP!=="All"||fTS!=="All"||fTQ!=="";
-      const cols=[["",28],["Job #",92],["Project",128],["Task",null],["Designer",82],["Priority",65],["Status",82],["Due",96]];
+      const cols=[["",28],["Job #",92],["Project",128],["Task",280],["HOW TO",null],["Designer",82],["Priority",65],["Status",82],["Due",96]];
       return(
         <div>
           {/* Viewing as bar */}
@@ -791,6 +936,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
               {filteredTasks.map((t,i)=>{
                 const due=computeDue(t.stepId,t.startDate);
                 const dueFmt=due?formatDue(due):t.startDate?{text:'No date set',overdue:false}:null;
+                const proj=projects.find(p=>String(p.id)===t.job);
+                const instr=getTaskInstruction(t.stepId,proj?.city||null);
                 return(
                   <tr key={i} style={{background:i%2===0?"transparent":"var(--bg-row-alt)"}}>
                     <td style={{...S.td,textAlign:'center',paddingLeft:8}}>
@@ -799,7 +946,10 @@ Set included:true/false per contract. Extract real payment milestones with amoun
                     </td>
                     <td style={{...S.td,fontFamily:"monospace",fontSize:9,fontWeight:700,color:"var(--accent)",whiteSpace:"nowrap"}}>{t.job||'—'}</td>
                     <td style={{...S.td,fontSize:10,color:"var(--text-sub)",maxWidth:128,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.projectName||'—'}</td>
-                    <td style={{...S.td,color:"var(--text-body)",maxWidth:280}}>{t.desc||'—'}</td>
+                    <td style={{...S.td,color:"var(--text-body)",maxWidth:280,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.desc||'—'}</td>
+                    <td style={S.td}>
+                      {instr&&<button onClick={()=>setHowToPanel({instr,taskDesc:t.desc})} style={{background:'none',border:'1px solid var(--border-secondary)',color:'var(--accent)',cursor:'pointer',fontSize:9,fontFamily:'monospace',padding:'2px 7px',borderRadius:3,whiteSpace:'nowrap'}}>HOW TO</button>}
+                    </td>
                     <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:5}}>{t.assigned&&teamMembers[t.assigned]&&<MemberAv name={t.assigned} size={18}/>}<span style={{fontSize:10,color:"var(--text-sub)"}}>{t.assigned||'—'}</span></div></td>
                     <td style={S.td}><span style={{color:t.priority==='High'?"var(--sla-red-text)":t.priority==='Medium'?"var(--status-hold-text)":"var(--status-done-text)",fontSize:10,fontWeight:700,fontFamily:"monospace"}}>{t.priority||'Low'}</span></td>
                     <td style={S.td}><Sb status={t.status||'Not Started'}/></td>
@@ -810,7 +960,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
                 );
               })}
               {filteredTasks.length===0&&(
-                <tr><td colSpan={8} style={{...S.td,textAlign:"center",padding:"32px"}}>
+                <tr><td colSpan={9} style={{...S.td,textAlign:"center",padding:"32px"}}>
                   {hasFilters
                     ?<span style={{color:"var(--text-faint)",fontFamily:"monospace",fontSize:11}}>No tasks match the current filters.</span>
                     :<span style={{color:"var(--status-done-text)",fontFamily:"monospace",fontSize:13,fontWeight:700}}>✓ All caught up! No pending tasks.</span>}
@@ -938,6 +1088,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {analyseModal&&<AnalyseModal project={analyseModal} onClose={()=>setAnalyseModal(null)} onSave={handleAnalyseSave}/>}
       {notifPanel&&<NotificationPanel prefs={notifPrefs} history={notifHistory} onClose={()=>setNotifPanel(false)} onUpdatePrefs={saveNotifPrefs}/>}
       {hoaPanel&&<HOAPanel project={hoaPanel} initData={getHOAData(hoaPanel.id,hoaData)} onClose={()=>setHoaPanel(null)} onUpdate={saveHoaData}/>}
+      {howToPanel&&<HowToPanel instr={howToPanel.instr} taskDesc={howToPanel.taskDesc} startEdit={!!howToPanel.startEdit} onClose={()=>setHowToPanel(null)}/>}
       {selP&&<PM/>}
       {ctrP&&<ContractModule project={ctrP} onClose={()=>setCtrP(null)} onUpdate={handleContractModuleUpdate}/>}
       {emailModal&&<EmailModal project={emailModal} extra={buildEmailExtra(emailModal)} onClose={()=>setEmailModal(null)} onLog={saveEmailLog}/>}
@@ -1074,6 +1225,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onAnalyse={()=>setAnalyseModal(detailProject)}
             onUpdateFields={updateProjectFields}
             onChangeJobNumber={changeJobNumber}
+            taskInstructions={taskInstructions}
+            onEditInstruction={stepId=>{const instr=getTaskInstruction(stepId,detailProject?.city||null);if(instr)setHowToPanel({instr,taskDesc:'',startEdit:true});}}
             threads={gmailThreads}
             onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />

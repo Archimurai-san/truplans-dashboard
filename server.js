@@ -57,9 +57,11 @@ function toDb(p) {
     scope_of_work: p.scopeOfWork   || [],
     workflow:      p.workflow       || [],
     site_measurement_date: p.siteMeasurementDate || null,
-    team:          Array.isArray(p.team) ? p.team : [],
-    team_roles:    p.teamRoles      || {},
-    assign_note:   p.assignNote     || null,
+    team:              Array.isArray(p.team) ? p.team : [],
+    team_roles:        p.teamRoles      || {},
+    assign_note:       p.assignNote     || null,
+    payment_milestones: Array.isArray(p.paymentMilestones) ? p.paymentMilestones : [],
+    contracts:          Array.isArray(p.contracts)         ? p.contracts          : [],
   };
 }
 
@@ -85,9 +87,10 @@ function fromDb(row) {
     workflow:     row.workflow      || [],
     siteMeasurementDate: row.site_measurement_date || null,
     team:         Array.isArray(row.team) ? row.team : [],
-    teamRoles:    row.team_roles    || {},
-    assignNote:   row.assign_note   || '',
-    contracts:    [],
+    teamRoles:        row.team_roles        || {},
+    assignNote:       row.assign_note       || '',
+    paymentMilestones: Array.isArray(row.payment_milestones) ? row.payment_milestones : [],
+    contracts:         Array.isArray(row.contracts)          ? row.contracts         : [],
   };
 }
 
@@ -224,6 +227,46 @@ app.get('/api/supabase/projects', async (req, res) => {
     res.json(data.map(fromDb));
   } catch(err) {
     console.error('[supabase] GET exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/supabase/task-instructions', async (req, res) => {
+  console.log('[supabase] GET /api/supabase/task-instructions — client ready:', !!supabase);
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  try {
+    const { data, error } = await supabase.from('task_instructions').select('*').order('workflow_step_id');
+    if (error) {
+      console.error('[supabase] SELECT error:', error.message, error.details);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[supabase] SELECT ok — rows returned:', data.length);
+    res.json(data);
+  } catch(err) {
+    console.error('[supabase] GET exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/supabase/task-instructions/:id', async (req, res) => {
+  console.log('[supabase] PUT /api/supabase/task-instructions/:id —', req.params.id);
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  const { body_text, checklist, links, last_updated_by } = req.body;
+  try {
+    const { data, error } = await supabase
+      .from('task_instructions')
+      .update({ body_text, checklist, links, last_updated_by })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) {
+      console.error('[supabase] UPDATE error:', error.message, error.details);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[supabase] UPDATE ok — id:', req.params.id, 'version now:', data.version);
+    res.json(data);
+  } catch(err) {
+    console.error('[supabase] PUT exception:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -353,8 +353,9 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
 
   const ctr=ci!==null?ctrs[ci]:null;
   const paid=ctr?ctr.paymentMilestones.filter(m=>m.paid).reduce((a,m)=>a+m.amount,0):0;
+  const milestonesTotal=ctr?ctr.paymentMilestones.reduce((a,m)=>a+(m.amount||0),0):0;
   const addendumTotal=ctr?(ctr.addendums||[]).filter(a=>a.status==='Signed'||a.status==='Approved').reduce((s,a)=>s+(Number(a.amount)||0),0):0;
-  const effectiveTotal=ctr?(Number(ctr.totalAmount)||0)+addendumTotal:0;
+  const effectiveTotal=ctr?((Number(ctr.totalAmount)||0)||milestonesTotal)+addendumTotal:0;
   const due=ctr?effectiveTotal-paid:0;
   const pctP=ctr&&effectiveTotal>0?Math.round(paid/effectiveTotal*100):0;
 
@@ -525,7 +526,7 @@ ${pdfTxt.slice(0,8000)}`}]});
         ))}
         <div style={{display:"flex",justifyContent:"space-between",padding:"12px",background:"#0a0a15",borderRadius:6,marginTop:8}}>
           <span style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>PAID / TOTAL</span>
-          <span style={{fontSize:14,fontWeight:700,color:"#52d68a",fontFamily:"monospace"}}>{fmt$(paid)} / {fmt$(ctr.totalAmount)}</span>
+          <span style={{fontSize:14,fontWeight:700,color:"#52d68a",fontFamily:"monospace"}}>{fmt$(paid)} / {fmt$(effectiveTotal)}</span>
         </div>
       </div>}
 

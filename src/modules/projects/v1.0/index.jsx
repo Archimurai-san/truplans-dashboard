@@ -346,8 +346,10 @@ Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if no
 {"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields,onChangeJobNumber}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields,onChangeJobNumber,taskInstructions=[],onEditInstruction=()=>{}}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
+  const [howToStepId,setHowToStepId]=useState(null);
+  const getInstr=id=>taskInstructions.find(r=>r.workflow_step_id===id&&r.city===project.city)||taskInstructions.find(r=>r.workflow_step_id===id&&!r.city)||null;
   const [renaming,setRenaming]=useState(false);
   const [renameVal,setRenameVal]=useState(project.name);
   const [editingDate,setEditingDate]=useState(false);
@@ -565,11 +567,29 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
           <div style={{marginTop:14}}>
             <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}}>Internal Steps 5.1–5.20</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:3}}>
-              {internalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:4,background:SBG[st],cursor:'pointer',userSelect:'none'}}><span style={{fontSize:8,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:26}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{step.label}</span></div>;})}
+              {internalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:4,background:SBG[st],cursor:'pointer',userSelect:'none'}}><span style={{fontSize:8,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:26}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>{step.label}</span>{getInstr(step.id)&&<span onClick={e=>{e.stopPropagation();setHowToStepId(howToStepId===step.id?null:step.id);}} style={{fontSize:9,color:SCOL[st],opacity:0.7,cursor:'pointer',marginLeft:4,fontFamily:'monospace',flexShrink:0}}>?</span>}</div>;})}
             </div>
             <div style={{fontSize:9,color:'var(--sla-red-text)',fontFamily:'monospace',letterSpacing:'1px',textTransform:'uppercase',marginTop:12,marginBottom:8}}>External 5.21–5.23 — SLA Paused</div>
             <div style={{display:'flex',gap:6}}>
-              {externalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:4,background:SBG[st],border:`1px solid ${SCOL[st]}44`,cursor:'pointer',userSelect:'none'}}><span style={{fontSize:9,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:28}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],flex:1}}>{step.label}</span></div>;})}
+              {externalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:4,background:SBG[st],border:`1px solid ${SCOL[st]}44`,cursor:'pointer',userSelect:'none'}}><span style={{fontSize:9,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:28}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],flex:1}}>{step.label}</span>{getInstr(step.id)&&<span onClick={e=>{e.stopPropagation();setHowToStepId(howToStepId===step.id?null:step.id);}} style={{fontSize:9,color:SCOL[st],opacity:0.7,cursor:'pointer',marginLeft:4,fontFamily:'monospace',flexShrink:0}}>?</span>}</div>;})}
+            {howToStepId&&(()=>{const instr=getInstr(howToStepId);if(!instr)return null;return(
+              <div style={{marginTop:16,borderTop:'1px solid var(--border-primary)',paddingTop:14}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                  <div>
+                    <div style={{fontSize:9,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:3}}>{instr.workflow_step_id} — HOW TO</div>
+                    <div style={{fontSize:13,fontWeight:700,color:'var(--text-primary)'}}>{instr.step_name}</div>
+                    {instr.last_updated_by&&<div style={{fontSize:9,color:'var(--text-ghost)',fontFamily:'monospace',marginTop:2}}>v{instr.version} · by {instr.last_updated_by}</div>}
+                  </div>
+                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                    <button onClick={()=>onEditInstruction(howToStepId)} style={{background:'none',border:'1px solid var(--border-secondary)',color:'var(--text-muted)',cursor:'pointer',fontSize:9,fontFamily:'monospace',padding:'2px 8px',borderRadius:3}}>Edit</button>
+                    <button onClick={()=>setHowToStepId(null)} style={{background:'none',border:'none',color:'var(--text-muted)',cursor:'pointer',fontSize:14,lineHeight:1}}>✕</button>
+                  </div>
+                </div>
+                {instr.body_text&&<p style={{fontSize:11,color:'var(--text-body)',lineHeight:1.6,margin:'0 0 12px 0'}}>{instr.body_text}</p>}
+                {Array.isArray(instr.checklist)&&instr.checklist.length>0&&<div style={{marginBottom:12}}><div style={{fontSize:9,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:6}}>Checklist</div>{instr.checklist.map((item,i)=><div key={i} style={{display:'flex',gap:6,alignItems:'flex-start',marginBottom:4}}><span style={{color:'var(--accent)',fontFamily:'monospace',fontSize:10,marginTop:1}}>☐</span><span style={{fontSize:10,color:'var(--text-body)',lineHeight:1.5}}>{item}</span></div>)}</div>}
+                {Array.isArray(instr.links)&&instr.links.length>0&&<div><div style={{fontSize:9,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:6}}>Links</div>{instr.links.map((lk,i)=><div key={i} style={{marginBottom:4}}><a href={lk.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:'var(--accent)',textDecoration:'none',fontFamily:'monospace'}}>{lk.label||lk.url}</a></div>)}</div>}
+              </div>
+            );})()}
             </div>
           </div>
         </div>
