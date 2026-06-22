@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { version as APP_VERSION } from "../package.json";
 import { LAMap, SoCalOverview } from './components/SoCalMap.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import {
@@ -24,6 +25,7 @@ import { EmailModal, Inbox } from "./modules/email-agent/v1.0/index.jsx";
 import { TeamSettingsModal, UserSelectModal } from "./modules/team/v1.0/index.jsx";
 import { NotificationPanel } from "./modules/notifications/v1.0/index.jsx";
 import { LoginScreen } from "./modules/auth/v1.0/index.jsx";
+import { AiAssistant } from "./modules/ai-assistant/v1.0/index.jsx";
 
 let _saveTimer=null;
 export default function App(){
@@ -175,6 +177,7 @@ export default function App(){
   const _projInit=useRef(false);
   const _syncTimer=useRef(null);
   const _remoteUpdate=useRef(false);
+  const _pendingProjects=useRef(null);
   const [realtimeStatus,setRealtimeStatus]=useState('connecting');
   useEffect(()=>{
     fetch(`${API_BASE}/api/supabase/projects`)
@@ -222,9 +225,11 @@ export default function App(){
   // Helper: push projects to Supabase cloud (debounced).
   // Called explicitly from user-action paths only. Render alone never triggers a cloud push.
   const pushProjectsToCloud=(nextProjects)=>{
+    _pendingProjects.current=nextProjects;
     if(_syncTimer.current) clearTimeout(_syncTimer.current);
     _syncTimer.current=setTimeout(()=>{
       _syncTimer.current=null;
+      _pendingProjects.current=null;
       triggerSave();
       fetch(`${API_BASE}/api/supabase/sync`,{
         method:'POST',
@@ -233,6 +238,17 @@ export default function App(){
       }).catch(err=>console.error('[supabase] Failed to sync projects to cloud:', err.message));
     },1000);
   };
+  useEffect(()=>{
+    const flush=()=>{
+      if(!_syncTimer.current||!_pendingProjects.current) return;
+      clearTimeout(_syncTimer.current);
+      _syncTimer.current=null;
+      navigator.sendBeacon(`${API_BASE}/api/supabase/sync`,new Blob([JSON.stringify({projects:_pendingProjects.current})],{type:'application/json'}));
+      _pendingProjects.current=null;
+    };
+    window.addEventListener('beforeunload',flush);
+    return()=>window.removeEventListener('beforeunload',flush);
+  },[]);
 
   // saveProjects(updater) — same shape as setProjects, but also queues a cloud sync.
   // Use this everywhere a USER ACTION mutates projects. Do NOT use for realtime echoes.
@@ -256,6 +272,10 @@ export default function App(){
       team:        Array.isArray(row.team) ? row.team : [],
       teamRoles:   row.team_roles  || {},
       assignNote:  row.assign_note || '',
+      clientPhone:   row.client_phone   || '',
+      clientEmail:   row.client_email   || '',
+      clientAddress: row.client_address || '',
+      reminders: Array.isArray(row.reminders) ? row.reminders : [],
     });
     const channel=sbClient.channel('projects-realtime')
       .on('postgres_changes',{event:'*',schema:'public',table:'projects'},payload=>{
@@ -264,7 +284,7 @@ export default function App(){
           _remoteUpdate.current=true;
           setProjects(prev=>{
             const exists=prev.some(p=>p.id===updated.id);
-            return exists?prev.map(p=>p.id===updated.id?{...p,...updated,team:p.team||[],teamRoles:p.teamRoles||{},assignNote:p.assignNote||'',contracts:p.contracts||[]}:p):[...prev,{...updated,team:[],contracts:[]}];
+            return exists?prev.map(p=>p.id===updated.id?{...p,...updated,workflow:p.workflow&&p.workflow.length>0?p.workflow:updated.workflow,team:p.team||[],teamRoles:p.teamRoles||{},assignNote:p.assignNote||'',contracts:p.contracts||[]}:p):[...prev,{...updated,team:[],contracts:[]}];
           });
         } else if(payload.eventType==='DELETE'&&payload.old?.id){
           _remoteUpdate.current=true;
@@ -330,12 +350,20 @@ export default function App(){
   const updateProjectNotes=(id,notes)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));};
   const updateProjectName=(id,name)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
   const updateProjectFields=(id,updates)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,...updates}:p));};
+  const patchProjectNow=(id,fields)=>{
+    setProjects(prev=>prev.map(p=>p.id===id?{...p,...fields}:p));
+    fetch(`${API_BASE}/api/supabase/projects/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)}).catch(console.error);
+  };
+  const saveRemindersNow=(id,reminders)=>patchProjectNow(id,{reminders});
   const togglePhaseFromDetail=(projectId,stepId)=>{
     const today=new Date().toISOString().slice(0,10);
     saveProjects(prev=>prev.map(p=>{
       if(String(p.id)!==String(projectId)) return p;
+      const baseWorkflow=Array.isArray(p.workflow)&&p.workflow.length>0
+        ?p.workflow
+        :generateWorkflow(p.start||today,p.designer||'');
+      const workflow=baseWorkflow.map(m=>m&&m.milestoneId===stepId?{...m,status:m.status==='Completed'?'Not Started':'Completed'}:m);
       const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:ph.status==='done'?'not_started':'done',dateCompleted:ph.status==='done'?null:today}:ph);
-      const workflow=(Array.isArray(p.workflow)?p.workflow:[]).map(m=>m&&m.milestoneId===stepId?{...m,status:m.status==='Completed'?'Not Started':'Completed'}:m);
       return{...p,phases,workflow};
     }));
   };
@@ -450,6 +478,8 @@ export default function App(){
   const [fTP,setFTP]=useState("All");
   const [fTS,setFTS]=useState("All");
   const [fTQ,setFTQ]=useState("");
+  const [ganttDesigner,setGanttDesigner]=useState('All');
+  const [ganttYear,setGanttYear]=useState(()=>new Date().getFullYear());
   const visibleProjects=useMemo(()=>
     userRole==='designer'&&userDesignerName
       ?projects.filter(p=>p.designer===userDesignerName)
@@ -534,7 +564,7 @@ export default function App(){
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
       setImportStep("AI is analyzing contract...");
       const apiResult=await window.electronAPI.analyseContract({
-        model:"claude-sonnet-4-20250514",max_tokens:4000,
+        model:"claude-sonnet-4-6",max_tokens:4000,
         messages:[{role:"user",content:[
           {type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},
           {type:"text",text:`You are a project manager at TruPlans Inc., a California architectural design firm. Extract all info from this contract. Return ONLY valid JSON, no markdown, no backticks:
@@ -602,9 +632,9 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         <div style={S.card}><ST>Designer Workload</ST>{Object.keys(teamMembers).map(d=>{const dp=projects.filter(p=>p.designer===d&&p.status==="In Progress");return<div key={d} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><MemberAv name={d}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"var(--text-body)"}}>{d}</span><span style={{fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}>{dp.length} active</span></div><Pb pct={dp.length/5*100} color={teamMembers[d]}/></div></div>;})}</div>
-        <div style={{...S.card,display:"flex",flexDirection:"column",minHeight:340}}><ST>Greater LA — Project Map</ST><Suspense fallback={<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><LAMap projects={projects}/></Suspense></div>
+        <div style={{...S.card,display:"flex",flexDirection:"column",minHeight:340}}><ST>TruPlans Expansion Map</ST><Suspense fallback={<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><LAMap projects={projects}/></Suspense></div>
       </div>
-      <div style={{...S.card,marginBottom:24}}><ST>Southern California — Project Overview</ST><Suspense fallback={<div style={{height:320,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><SoCalOverview projects={projects}/></Suspense></div>
+      <div style={{...S.card,marginBottom:24}}><ST>TruPlans U.S. Marketing Project Map</ST><Suspense fallback={<div style={{height:320,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><SoCalOverview projects={projects}/></Suspense></div>
       <div style={S.card}><ST>Open Tasks by Priority</ST>
         <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
           {[["High Priority","var(--sla-red-text)","Tasks overdue / at risk","High"],["Medium Priority","var(--status-hold-text)","Tasks due soon","Medium"],["Low Priority","var(--status-done-text)","Tasks on track","Low"]].map(([label,color,sub,pri])=>(
@@ -700,7 +730,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       </div>
       <table style={S.tbl}>
         <thead><tr>{[["Job #",65],["Project",null],["Client",95],["Type",75],["Lead + Team",80],["Phase",105],["Status",82],["SLA",85],["Progress",75],["Contract",78],["Balance",72],["Contracts",62],["PDF",38],["Action",120]].map(([h,w])=><th key={h} style={{...S.th,...(w?{width:w,minWidth:w}:{})}}>{h}</th>)}</tr></thead>
-        <tbody>{filtered.map((p,i)=><tr key={p.id} style={{background:i%2===0?"transparent":"var(--bg-row-alt)",cursor:"pointer"}} onClick={()=>setSelP(p)}>
+        <tbody>{filtered.map((p,i)=><tr key={p.id} style={{background:i%2===0?"transparent":"var(--bg-row-alt)",cursor:"pointer"}} onClick={()=>setDetailProjectId(p.id)}>
           <td style={{...S.td,color:"var(--accent)",fontFamily:"monospace",fontSize:9,fontWeight:700}}><div style={{display:"flex",alignItems:"center",gap:3}}><div title={`City: ${getCityData(p.id,cityData).planCheckStatus}`} style={{width:5,height:5,borderRadius:"50%",background:CITY_STATUS_DOT[getCityData(p.id,cityData).planCheckStatus]||"var(--text-ghost)",flexShrink:0}}/>{getHOAData(p.id,hoaData).hoaRequired&&<div title={`HOA: ${getHOAData(p.id,hoaData).hoaStatus}`} style={{width:5,height:5,borderRadius:"50%",background:HOA_STATUS_DOT[getHOAData(p.id,hoaData).hoaStatus]||"var(--text-ghost)",flexShrink:0}}/>}{p.id}</div></td>
           <td style={{...S.td,color:"var(--accent)",maxWidth:160,cursor:"pointer",fontWeight:600,textDecoration:"underline",textUnderlineOffset:3}} onClick={e=>{e.stopPropagation();setDetailProjectId(p.id);}}>{p.name}</td>
           <td style={{...S.td,color:"var(--text-sub)",fontSize:10}}>{p.client}</td>
@@ -714,38 +744,69 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           <td style={{...S.td,color:p.contract-p.invoiced>0?"#f0a842":"#52d68a",fontFamily:"monospace",fontSize:10}}>{fmt$(p.contract-p.invoiced)}</td>
           <td style={S.td} onClick={e=>{e.stopPropagation();setCtrP(p);}}><span style={{fontSize:10,color:p.contracts.length>0?"var(--accent)":"var(--text-ghost)",cursor:"pointer",fontFamily:"monospace",fontWeight:700}}>{p.contracts.length>0?`📄 ${p.contracts.length}`:"+ Add"}</span></td>
           <td style={S.td} onClick={e=>e.stopPropagation()}>{contractPaths[p.id]?(<span title="View contract PDF" onClick={()=>setPdfPanel({project:p,filePath:contractPaths[p.id]})} style={{fontSize:18,cursor:"pointer",color:"#1565c0",userSelect:"none"}}>📄</span>):(<span title="Attach contract PDF" onClick={()=>pickPDF(p)} style={{fontSize:13,cursor:"pointer",color:"var(--text-ghost)",fontWeight:700,fontFamily:"monospace",userSelect:"none"}}>📎+</span>)}</td>
-          <td style={S.td}><div style={{display:"flex",gap:2}}><button title="Analyse Contract" style={{background:"none",border:"1px solid #8e44ad44",color:"#8e44ad",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setAnalyseModal(p);}}>🔍</button><button title="Workflow" style={{background:"none",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setWorkflowP(p);}}>📋</button><button title="Payments" style={{background:"none",border:"1px solid #f0a84244",color:"#f0a842",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPaymentPanel(p);}}>💰</button><button title="City" style={{background:"none",border:"1px solid #3498db44",color:"#3498db",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setCityPanel(p);}}>🏛</button><button title="HOA" style={{background:"none",border:getHOAData(p.id,hoaData).hoaRequired?"1px solid #27ae6044":"1px solid var(--border-secondary)",color:getHOAData(p.id,hoaData).hoaRequired?"#27ae60":"var(--text-ghost)",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setHoaPanel(p);}}>🏠</button><button title="Email Templates" style={{background:"none",border:"1px solid #1565c044",color:"#1565c0",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setEmailModal(p);}}>✉️</button><button style={{...S.ghost,padding:"1px 6px",fontSize:9}} onClick={e=>{e.stopPropagation();setSelP(p);}}>View</button><button style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:3,padding:"1px 5px",fontSize:9,cursor:"pointer",fontFamily:"monospace"}} onClick={e=>{e.stopPropagation();setConfirmDelete(p);}}>✕</button></div></td>
+          <td style={S.td}><div style={{display:"flex",gap:2}}><button title="Analyse Contract" style={{background:"none",border:"1px solid #8e44ad44",color:"#8e44ad",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setAnalyseModal(p);}}>🔍</button><button title="Workflow" style={{background:"none",border:"1px solid #27ae6044",color:"#27ae60",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setWorkflowP(p);}}>📋</button><button title="Payments" style={{background:"none",border:"1px solid #f0a84244",color:"#f0a842",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setPaymentPanel(p);}}>💰</button><button title="City" style={{background:"none",border:"1px solid #3498db44",color:"#3498db",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setCityPanel(p);}}>🏛</button><button title="HOA" style={{background:"none",border:getHOAData(p.id,hoaData).hoaRequired?"1px solid #27ae6044":"1px solid var(--border-secondary)",color:getHOAData(p.id,hoaData).hoaRequired?"#27ae60":"var(--text-ghost)",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setHoaPanel(p);}}>🏠</button><button title="Email Templates" style={{background:"none",border:"1px solid #1565c044",color:"#1565c0",borderRadius:3,padding:"1px 4px",fontSize:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setEmailModal(p);}}>✉️</button><button style={{background:"none",border:"1px solid #e74c3c44",color:"#e74c3c",borderRadius:3,padding:"1px 5px",fontSize:9,cursor:"pointer",fontFamily:"monospace"}} onClick={e=>{e.stopPropagation();setConfirmDelete(p);}}>✕</button></div></td>
         </tr>)}</tbody>
       </table>
     </>
   );
 
-  const Gantt=()=>(
-    <div style={{...S.card,overflowX:"auto"}}>
-      <ST>2026 Project Timeline</ST>
-      <div style={{display:"flex",marginBottom:4,marginLeft:260}}>{MTHS.map((m,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:9,color:"var(--accent)",fontFamily:"monospace",borderLeft:"1px solid var(--bg-subtle)",paddingLeft:2}}>{m}</div>)}</div>
-      {visibleProjects.map((p,i)=>{const bar=gBar(p.start,p.end),color=PALETTE[i%6];return<div key={p.id} style={{display:"flex",alignItems:"center",marginBottom:4,minWidth:900}}>
-        <div style={{width:260,flexShrink:0,display:"flex",alignItems:"center",gap:6,paddingRight:10}}><MemberAv name={p.designer} size={20}/><div style={{overflow:"hidden"}}><div style={{fontSize:10,color:"var(--accent)",fontFamily:"monospace"}}>{p.id}</div><div style={{fontSize:10,color:"var(--text-body)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:190}}>{p.name}</div></div></div>
-        <div style={{flex:1,position:"relative",height:22,background:"var(--bg-secondary)",borderRadius:2}}>
-          {MTHS.map((_,mi)=><div key={mi} style={{position:"absolute",left:(mi/12*100)+"%",top:0,bottom:0,width:1,background:"var(--bg-subtle)"}}/>)}
-          <div style={{position:"absolute",left:todayL+"%",top:-2,bottom:-2,width:1.5,background:"#e94560",zIndex:10}}/>
-          {p.workflow&&p.workflow.length>0?(
-            p.workflow.map((m,wi)=>{
-              const wb=gBar(m.startDate,m.endDate);
-              const wc=m.status==="Completed"?"#27ae60":m.status==="Blocked"?"#e74c3c":m.status==="In Progress"?"#3498db":"#2a2a4a";
-              return <div key={wi} title={m.milestoneId+" - "+m.label} onClick={()=>setWorkflowP(p)} style={{position:"absolute",left:wb.left,width:wb.width,top:m.payment?1:5,bottom:m.payment?1:5,background:wc+"88",borderRadius:2,border:`1px solid ${wc}`,cursor:"pointer"}}/>;
-            })
-          ):(
-            <div style={{position:"absolute",left:bar.left,width:bar.width,top:3,bottom:3,background:color+"cc",borderRadius:3,display:"flex",alignItems:"center",paddingLeft:4,overflow:"hidden",border:`1px solid ${color}`}}>
-              <span style={{fontSize:8,color:"#fff",whiteSpace:"nowrap",fontWeight:700,fontFamily:"monospace"}}>{p.pct}%</span>
-              <div style={{position:"absolute",left:0,top:0,bottom:0,width:p.pct+"%",background:color,opacity:0.4,borderRadius:3}}/>
-            </div>
-          )}
+  const Gantt=()=>{
+    const ganttProjects=userRole==='designer'?visibleProjects:ganttDesigner==='All'?visibleProjects:visibleProjects.filter(p=>p.designer===ganttDesigner);
+    const gS=new Date(ganttYear+'-01-01');
+    const gE=new Date(ganttYear+'-12-31');
+    const gT=(gE-gS)/86400000;
+    const localBar=(s,e)=>{const sd=new Date(s),ed=new Date(e);const l=Math.max(0,(sd-gS)/86400000/gT*100);const w=Math.min(100-l,(ed-sd)/86400000/gT*100);return{left:l.toFixed(1)+"%",width:Math.max(0.5,w).toFixed(1)+"%"};};
+    const localTodayL=((new Date()-gS)/86400000/gT*100).toFixed(2);
+    return(
+      <div style={{...S.card,overflowX:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:"var(--section-header)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace"}}>{ganttYear} Project Timeline</div>
+          {userRole!=='designer'&&<select value={ganttDesigner} onChange={e=>setGanttDesigner(e.target.value)} style={{...S.sel,width:"auto",minWidth:160}}><option value="All">All Designers</option>{Object.keys(teamMembers).sort().map(n=><option key={n} value={n}>{n}</option>)}</select>}
         </div>
-        <div onClick={()=>setWorkflowP(p)} style={{width:100,flexShrink:0,paddingLeft:8,fontSize:9,color:"var(--text-faint)",fontFamily:"monospace",cursor:"pointer"}}>{p.workflow&&p.workflow.length>0?p.workflow.find(m=>m.status==="In Progress")?.milestoneId||p.phase:p.phase}</div>
-      </div>;})}
-    </div>
-  );
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+          <button onClick={()=>setGanttYear(y=>y-1)} style={{background:"var(--bg-secondary)",border:"1px solid var(--border-secondary)",color:"var(--text-body)",borderRadius:4,padding:"3px 10px",cursor:"pointer",fontSize:12,fontFamily:"monospace"}}>{"← "}{ganttYear-1}</button>
+          <span style={{fontSize:10,color:"var(--accent)",fontFamily:"monospace",fontWeight:700,padding:"3px 8px",border:"1px solid var(--accent)",borderRadius:4}}>{ganttYear}</span>
+          <button onClick={()=>setGanttYear(y=>y+1)} style={{background:"var(--bg-secondary)",border:"1px solid var(--border-secondary)",color:"var(--text-body)",borderRadius:4,padding:"3px 10px",cursor:"pointer",fontSize:12,fontFamily:"monospace"}}>{ganttYear+1}{" →"}</button>
+          <button onClick={()=>setGanttYear(new Date().getFullYear())} style={{background:"none",border:"1px solid var(--accent)",color:"var(--accent)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontSize:9,fontFamily:"monospace",marginLeft:4}}>TODAY</button>
+        </div>
+        <div style={{display:"flex",marginBottom:8,marginLeft:260,marginRight:100}}>
+          {MTHS.map((m,i)=>(
+            <div key={i} style={{flex:1,borderLeft:"1px solid var(--bg-subtle)",paddingLeft:2}}>
+              <div style={{fontSize:9,color:"var(--accent)",fontFamily:"monospace",textAlign:"center"}}>{m}</div>
+              <div style={{display:"flex"}}>
+                {["W1","W2","W3","W4"].map((w,wi)=><div key={w} style={{flex:1,fontSize:7,color:"var(--text-ghost)",fontFamily:"monospace",textAlign:"center",background:wi%2===0?"rgba(0,0,0,0.07)":"transparent"}}>{w}</div>)}
+              </div>
+            </div>
+          ))}
+        </div>
+        {ganttProjects.map((p,i)=>{const bar=localBar(p.start,p.end),color=PALETTE[i%6];return<div key={p.id} style={{display:"flex",alignItems:"center",marginBottom:4,minWidth:900}}>
+          <div style={{width:260,flexShrink:0,display:"flex",alignItems:"center",gap:6,paddingRight:10}}><MemberAv name={p.designer} size={20}/><div style={{overflow:"hidden"}}><div style={{fontSize:10,color:"var(--accent)",fontFamily:"monospace"}}>{p.id}</div><div style={{fontSize:10,color:"var(--text-body)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:190}}>{p.name}</div></div></div>
+          <div style={{flex:1,position:"relative",height:22,background:"var(--bg-secondary)",borderRadius:2}}>
+            {MTHS.flatMap((_,mi)=>[
+              <div key={`m${mi}`} style={{position:"absolute",left:(mi/12*100)+"%",top:0,bottom:0,width:1,background:"rgba(0,0,0,0.3)",zIndex:1}}/>,
+              ...[0,1,2,3].map(wi=><div key={`wz${mi}${wi}`} style={{position:"absolute",left:((mi+wi*0.25)/12*100)+"%",width:(0.25/12*100)+"%",top:0,bottom:0,background:wi%2===0?"rgba(0,0,0,0.06)":"transparent",pointerEvents:"none"}}/>)
+            ])}
+            <div style={{position:"absolute",left:localTodayL+"%",top:i===0?-40:-2,bottom:-2,width:1.5,background:"#e94560",zIndex:10}}>
+              {i===0&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",background:"#e94560",color:"#fff",fontSize:7,fontFamily:"monospace",fontWeight:700,padding:"1px 4px",borderRadius:2,whiteSpace:"nowrap",letterSpacing:"0.5px"}}>TODAY</div>}
+            </div>
+            {p.workflow&&p.workflow.length>0?(
+              p.workflow.map((m,wi)=>{
+                const wb=localBar(m.startDate,m.endDate);
+                const wc=m.status==="Completed"?"#27ae60":m.status==="Blocked"?"#e74c3c":m.status==="In Progress"?"#3498db":"#2a2a4a";
+                return <div key={wi} title={m.milestoneId+" - "+m.label} onClick={()=>setWorkflowP(p)} style={{position:"absolute",left:wb.left,width:wb.width,top:m.payment?1:5,bottom:m.payment?1:5,background:wc+"88",borderRadius:2,border:`1px solid ${wc}`,cursor:"pointer"}}/>;
+              })
+            ):(
+              <div style={{position:"absolute",left:bar.left,width:bar.width,top:3,bottom:3,background:color+"cc",borderRadius:3,display:"flex",alignItems:"center",paddingLeft:4,overflow:"hidden",border:`1px solid ${color}`}}>
+                <span style={{fontSize:8,color:"#fff",whiteSpace:"nowrap",fontWeight:700,fontFamily:"monospace"}}>{p.pct}%</span>
+                <div style={{position:"absolute",left:0,top:0,bottom:0,width:p.pct+"%",background:color,opacity:0.4,borderRadius:3}}/>
+              </div>
+            )}
+          </div>
+          <div onClick={()=>setWorkflowP(p)} style={{width:100,flexShrink:0,paddingLeft:8,fontSize:9,color:"var(--text-faint)",fontFamily:"monospace",cursor:"pointer"}}>{p.workflow&&p.workflow.length>0?p.workflow.find(m=>m.status==="In Progress")?.milestoneId||p.phase:p.phase}</div>
+        </div>;})}
+      </div>
+    );
+  };
 
 
   const Team=()=>(
@@ -1091,7 +1152,6 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {notifPanel&&<NotificationPanel prefs={notifPrefs} history={notifHistory} onClose={()=>setNotifPanel(false)} onUpdatePrefs={saveNotifPrefs}/>}
       {hoaPanel&&<HOAPanel project={hoaPanel} initData={getHOAData(hoaPanel.id,hoaData)} onClose={()=>setHoaPanel(null)} onUpdate={saveHoaData}/>}
       {howToPanel&&<HowToPanel instr={howToPanel.instr} taskDesc={howToPanel.taskDesc} startEdit={!!howToPanel.startEdit} onClose={()=>setHowToPanel(null)}/>}
-      {selP&&<PM/>}
       {ctrP&&<ContractModule project={ctrP} onClose={()=>setCtrP(null)} onUpdate={handleContractModuleUpdate}/>}
       {emailModal&&<EmailModal project={emailModal} extra={buildEmailExtra(emailModal)} onClose={()=>setEmailModal(null)} onLog={saveEmailLog}/>}
       {intake&&(
@@ -1127,7 +1187,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {assignP&&<AssignModal project={assignP} projects={projects} setProjects={saveProjects} teamMembers={teamMembers} onClose={()=>setAssignP(null)}/>}
       <nav style={S.nav}>
         <div style={S.logo}>TRUPLANS</div>
-        {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"],["inbox","Inbox"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
+        {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"],["inbox","Inbox"],["ai","AI"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
         <div ref={searchRef} style={{position:'relative',marginLeft:16,display:'flex',alignItems:'center'}}>
           <input
             value={searchQ}
@@ -1201,6 +1261,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
               {reportStatus.ok?`✓ Saved to Desktop`:`✕ ${reportStatus.msg}`}
             </div>}
           </div>
+          <span style={{fontSize:9,color:"var(--text-faint)",fontFamily:"monospace",letterSpacing:"1px",padding:"0 4px"}}>v{APP_VERSION}</span>
           <button onClick={toggleTheme} style={{background:"none",border:"1px solid var(--toggle-border)",color:"var(--text-muted)",borderRadius:99,padding:"4px 12px",cursor:"pointer",fontSize:10,fontFamily:"monospace",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>{theme==="dark"?"☀️ Light":"🌙 Dark"}</button>
         </div>
       </nav>
@@ -1226,6 +1287,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             onTogglePhase={togglePhaseFromDetail}
             onAnalyse={()=>setAnalyseModal(detailProject)}
             onUpdateFields={updateProjectFields}
+            onSaveReminders={saveRemindersNow}
+            onPatchNow={patchProjectNow}
             onChangeJobNumber={changeJobNumber}
             taskInstructions={taskInstructions}
             onEditInstruction={stepId=>{const instr=getTaskInstruction(stepId,detailProject?.city||null);if(instr)setHowToPanel({instr,taskDesc:'',startEdit:true});}}
@@ -1239,7 +1302,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''}/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''} onEmailTemplate={p=>setEmailModal(p)}/>}
+            {tab==="ai"&&<AiAssistant projects={projects} activeProjectId={detailProjectId}/>}
           </>
         )}
       </main>

@@ -6,6 +6,62 @@ import { getProjectCoords, getProjectCounty, getCountyStats, PIN_COLORS } from '
 const TILE_URL  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const STATUS_FILTERS = ['All', 'In Progress', 'Completed', 'On Hold'];
 
+// ── MAP TEST DATA — set SHOW_TEST_DATA=false to remove after testing ──────
+const SHOW_TEST_DATA = false;
+const TEST_PROJECTS = [
+  {id:'T01',name:'Test — Glendale Remodel',client:'Test Client',city:'Glendale',status:'In Progress'},
+  {id:'T02',name:'Test — Burbank Addition',client:'Test Client',city:'Burbank',status:'Completed'},
+  {id:'T03',name:'Test — Santa Monica ADU',client:'Test Client',city:'Santa Monica',status:'In Progress'},
+  {id:'T04',name:'Test — Torrance Kitchen',client:'Test Client',city:'Torrance',status:'On Hold'},
+  {id:'T05',name:'Test — Pasadena Master Suite',client:'Test Client',city:'Pasadena',status:'In Progress'},
+  {id:'T06',name:'Test — El Monte Bathroom',client:'Test Client',city:'El Monte',status:'Completed'},
+  {id:'T07',name:'Test — Inglewood Garage',client:'Test Client',city:'Inglewood',status:'In Progress'},
+  {id:'T08',name:'Test — Downey Full Remodel',client:'Test Client',city:'Downey',status:'Not Started'},
+  {id:'T09',name:'Test — West Covina Deck',client:'Test Client',city:'West Covina',status:'In Progress'},
+  {id:'T10',name:'Test — Norwalk Addition',client:'Test Client',city:'Norwalk',status:'Completed'},
+  {id:'T11',name:'Test — Carson ADU',client:'Test Client',city:'Carson',status:'In Progress'},
+  {id:'T12',name:'Test — Hawthorne Remodel',client:'Test Client',city:'Hawthorne',status:'On Hold'},
+  {id:'T13',name:'Test — Alhambra Kitchen',client:'Test Client',city:'Alhambra',status:'In Progress'},
+  {id:'T14',name:'Test — Whittier Bath',client:'Test Client',city:'Whittier',status:'Completed'},
+  {id:'T15',name:'Test — Pomona ADU',client:'Test Client',city:'Pomona',status:'In Progress'},
+  {id:'T16',name:'Test — Baldwin Park Addition',client:'Test Client',city:'Baldwin Park',status:'Not Started'},
+  {id:'T17',name:'Test — Lakewood Remodel',client:'Test Client',city:'Lakewood',status:'Completed'},
+  {id:'T18',name:'Test — Bellflower Garage',client:'Test Client',city:'Bellflower',status:'In Progress'},
+  {id:'T19',name:'Test — Pico Rivera Kitchen',client:'Test Client',city:'Pico Rivera',status:'On Hold'},
+  {id:'T20',name:'Test — Montebello Addition',client:'Test Client',city:'Montebello',status:'In Progress'},
+  {id:'T21',name:'Test — Rosemead Remodel',client:'Test Client',city:'Rosemead',status:'Completed'},
+  {id:'T22',name:'Test — Santa Clarita ADU',client:'Test Client',city:'Santa Clarita',status:'In Progress'},
+  {id:'T23',name:'Test — Lancaster Addition',client:'Test Client',city:'Lancaster',status:'On Hold'},
+  {id:'T24',name:'Test — Palmdale Remodel',client:'Test Client',city:'Palmdale',status:'In Progress'},
+  {id:'T25',name:'Test — Culver City Bath',client:'Test Client',city:'Culver City',status:'Completed'},
+  {id:'T26',name:'Test — El Segundo ADU',client:'Test Client',city:'El Segundo',status:'In Progress'},
+  {id:'T27',name:'Test — Manhattan Beach Kitchen',client:'Test Client',city:'Manhattan Beach',status:'In Progress'},
+  {id:'T28',name:'Test — Redondo Beach Remodel',client:'Test Client',city:'Redondo Beach',status:'Not Started'},
+  {id:'T29',name:'Test — Hermosa Beach Addition',client:'Test Client',city:'Hermosa Beach',status:'In Progress'},
+  {id:'T30',name:'Test — Gardena ADU',client:'Test Client',city:'Gardena',status:'Completed'},
+  {id:'T31',name:'Test — Lawndale Garage',client:'Test Client',city:'Lawndale',status:'In Progress'},
+  {id:'T32',name:'Test — Paramount Remodel',client:'Test Client',city:'Paramount',status:'On Hold'},
+  {id:'T33',name:'Test — Lynwood Addition',client:'Test Client',city:'Lynwood',status:'In Progress'},
+  {id:'T34',name:'Test — Huntington Park Kitchen',client:'Test Client',city:'Huntington Park',status:'Completed'},
+  {id:'T35',name:'Test — Maywood Bath',client:'Test Client',city:'Maywood',status:'In Progress'},
+  {id:'T36',name:'Test — Bell ADU',client:'Test Client',city:'Bell',status:'On Hold'},
+  {id:'T37',name:'Test — Bell Gardens Remodel',client:'Test Client',city:'Bell Gardens',status:'In Progress'},
+  {id:'T38',name:'Test — Cudahy Addition',client:'Test Client',city:'Cudahy',status:'Not Started'},
+  {id:'T39',name:'Test — Azusa Garage',client:'Test Client',city:'Azusa',status:'In Progress'},
+  {id:'T40',name:'Test — Covina Kitchen',client:'Test Client',city:'Covina',status:'Completed'},
+  {id:'T41',name:'Test — Arcadia Remodel',client:'Test Client',city:'Arcadia',status:'In Progress'},
+  {id:'T42',name:'Test — Monrovia ADU',client:'Test Client',city:'Monrovia',status:'On Hold'},
+  {id:'T43',name:'Test — Duarte Addition',client:'Test Client',city:'Duarte',status:'In Progress'},
+  {id:'T44',name:'Test — Glendora Bath',client:'Test Client',city:'Glendora',status:'Completed'},
+  {id:'T45',name:'Test — San Dimas Remodel',client:'Test Client',city:'San Dimas',status:'In Progress'},
+  {id:'T46',name:'Test — La Verne Garage',client:'Test Client',city:'La Verne',status:'In Progress'},
+  {id:'T47',name:'Test — Agoura Hills ADU',client:'Test Client',city:'Agoura Hills',status:'On Hold'},
+  {id:'T48',name:'Test — Calabasas Kitchen',client:'Test Client',city:'Calabasas',status:'In Progress'},
+  {id:'T49',name:'Test — Malibu Addition',client:'Test Client',city:'Malibu',status:'Completed'},
+  {id:'T50',name:'Test — South Gate Remodel',client:'Test Client',city:'South Gate',status:'In Progress'},
+];
+// ─────────────────────────────────────────────────────────────────────────────
+
 function buildPopup(p) {
   const color = PIN_COLORS[p.status] || '#888';
   const county = getProjectCounty(p);
@@ -145,12 +201,13 @@ export function LAMap({ projects }) {
   const [filter, setFilter] = useState('All');
   const containerRef = useRef(null);
   const { mapRef, layerRef } = useMap(containerRef, [34.05, -118.30], 10);
+  const allProjects = SHOW_TEST_DATA ? [...projects, ...TEST_PROJECTS] : projects;
 
-  useEffect(() => { updateMarkers(layerRef, projects, filter); }, [projects, filter]);
+  useEffect(() => { updateMarkers(layerRef, allProjects, filter); }, [allProjects, filter]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <FilterBar filter={filter} setFilter={setFilter} projects={projects} />
+      <FilterBar filter={filter} setFilter={setFilter} projects={allProjects} />
       <div ref={containerRef} style={{ flex: 1, minHeight: 260, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-secondary)' }} />
       <Legend />
     </div>
@@ -162,8 +219,9 @@ export function SoCalOverview({ projects }) {
   const [filter, setFilter] = useState('All');
   const containerRef = useRef(null);
   const { mapRef, layerRef } = useMap(containerRef, [33.9, -117.7], 8);
+  const allProjects = SHOW_TEST_DATA ? [...projects, ...TEST_PROJECTS] : projects;
 
-  useEffect(() => { updateMarkers(layerRef, projects, filter); }, [projects, filter]);
+  useEffect(() => { updateMarkers(layerRef, allProjects, filter); }, [allProjects, filter]);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 16 }}>
@@ -172,10 +230,10 @@ export function SoCalOverview({ projects }) {
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: 'monospace', marginBottom: 10 }}>By County</div>
         <div style={{ marginBottom: 14 }}>
-          <span style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 22, fontFamily: 'monospace' }}>{projects.length}</span>
+          <span style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 22, fontFamily: 'monospace' }}>{allProjects.length}</span>
           <span style={{ color: 'var(--text-muted)', marginLeft: 8, fontSize: 11 }}>total projects</span>
         </div>
-        <CountyBreakdown projects={projects} />
+        <CountyBreakdown projects={allProjects} />
         <div style={{ marginTop: 'auto', paddingTop: 14 }}>
           <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '2px', textTransform: 'uppercase', fontFamily: 'monospace', marginBottom: 6 }}>Filter Map</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

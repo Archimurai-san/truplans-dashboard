@@ -62,6 +62,10 @@ function toDb(p) {
     assign_note:       p.assignNote     || null,
     payment_milestones: Array.isArray(p.paymentMilestones) ? p.paymentMilestones : [],
     contracts:          Array.isArray(p.contracts)         ? p.contracts          : [],
+    client_phone:   p.clientPhone   || null,
+    client_email:   p.clientEmail   || null,
+    client_address: p.clientAddress || null,
+    reminders: Array.isArray(p.reminders) ? p.reminders : [],
   };
 }
 
@@ -91,6 +95,10 @@ function fromDb(row) {
     assignNote:       row.assign_note       || '',
     paymentMilestones: Array.isArray(row.payment_milestones) ? row.payment_milestones : [],
     contracts:         Array.isArray(row.contracts)          ? row.contracts         : [],
+    clientPhone:   row.client_phone   || '',
+    clientEmail:   row.client_email   || '',
+    clientAddress: row.client_address || '',
+    reminders: Array.isArray(row.reminders) ? row.reminders : [],
   };
 }
 
@@ -162,7 +170,7 @@ async function getOAuthForUser(userEmail) {
   return oauth2;
 }
 
-app.use(cors({ origin: ["http://localhost:5173","http://localhost:5174"] }));
+app.use(cors({ origin: ["http://localhost:5173","http://localhost:5174","http://localhost:5175","http://localhost:5176"] }));
 app.use(express.json({ limit: "50mb" }));
 
 app.get('/api/health', (req, res) => {
@@ -192,6 +200,81 @@ app.post('/api/claude', async (req, res) => {
     res.status(500).json({ error: err.message });
   } finally {
     clearTimeout(timer);
+  }
+});
+
+// --- AI Assistant ---
+
+app.post('/api/ai/ask', async (req, res) => {
+  if (!API_KEY) return res.status(500).json({ error: 'Anthropic API key not loaded' });
+  const { question, city, project } = req.body;
+  if (!question) return res.status(400).json({ error: 'question required' });
+
+  // Load relevant zoning standards from Supabase
+  let zoningContext = '';
+  if (supabase) {
+    const { data: zones } = await supabase
+      .from('zoning_standards')
+      .select('jurisdiction,zone,standards,citation,source_url,source_effective_date')
+      .order('jurisdiction');
+    if (zones?.length) {
+      zoningContext = '\n\nZONING KNOWLEDGE BASE (verified from official city codes):\n' +
+        zones.map(z => {
+          const s = z.standards;
+          return `\n${z.jurisdiction} — Zone: ${z.zone}\n` +
+            `  Density: ${s.density?.value || 'n/a'}\n` +
+            `  Min Lot Area: ${s.min_lot_area?.value || 'n/a'} ${s.min_lot_area?.unit || ''}\n` +
+            `  Front Setback: ${s.front_setback?.value || 'n/a'} ft ${s.front_setback?.notes ? '('+s.front_setback.notes+')' : ''}\n` +
+            `  Side Setback: ${s.side_setback?.value || 'n/a'} ft ${s.side_setback?.notes ? '('+s.side_setback.notes+')' : ''}\n` +
+            `  Rear Setback: ${s.rear_setback?.value || 'n/a'} ft\n` +
+            `  Max Height: ${s.max_height?.value || 'n/a'} ft\n` +
+            `  Max FAR: ${s.max_far?.value || 'n/a'}\n` +
+            `  Citation: ${z.citation || 'n/a'}\n` +
+            `  Source: ${z.source_url || 'n/a'}`;
+        }).join('\n');
+    }
+  }
+
+  // Build project context if provided
+  let projectContext = '';
+  if (project) {
+    projectContext = `\n\nCURRENT PROJECT:\n` +
+      `  Job #: ${project.id}\n` +
+      `  Name: ${project.name}\n` +
+      `  Client: ${project.client || 'n/a'}\n` +
+      `  City: ${project.city || 'n/a'}\n` +
+      `  Status: ${project.status || 'n/a'}\n` +
+      `  Phase: ${project.phase || 'n/a'}\n` +
+      `  Designer: ${project.designer || 'n/a'}\n` +
+      `  Type: ${project.type || 'n/a'}\n` +
+      `  Contract: $${project.contract || 0}\n` +
+      `  Start: ${project.start || 'n/a'} · End: ${project.end || 'n/a'}`;
+  }
+
+  const systemPrompt = `You are TruPlans AI — a zoning and workflow assistant for TruPlans Inc, a residential architectural design firm in Southern California.
+
+Your role: help designers and managers quickly find zoning rules, answer questions about projects, and assist with workflow decisions.
+
+You have access to a verified zoning knowledge database. When answering zoning questions, cite the specific zone, jurisdiction, and standards. If a city is not in the database, say so clearly and suggest checking the city's municipal code directly.
+
+Be concise and practical. Answer in plain language. Use bullet points for lists of standards. Always cite your source.${zoningContext}${projectContext}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: question }]
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) return res.status(500).json({ error: data.error?.message || 'Claude error' });
+    res.json({ answer: data.content?.[0]?.text || '' });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -307,6 +390,24 @@ app.post('/api/supabase/sync', async (req, res) => {
     res.json({ ok: true, synced: rows.length });
   } catch(err) {
     console.error('[supabase] sync exception:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const PATCH_ALLOWED = new Set(['reminders','client_phone','client_email','client_address']);
+app.patch('/api/supabase/projects/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!supabase) return res.status(503).json({ error: 'Supabase not configured' });
+  const updates = {};
+  for (const [k, v] of Object.entries(req.body || {})) {
+    if (PATCH_ALLOWED.has(k)) updates[k] = v;
+  }
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields' });
+  try {
+    const { error } = await supabase.from('projects').update(updates).eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  } catch(err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -471,6 +572,30 @@ app.get('/api/gmail/list', async (req, res) => {
     res.json(detailed);
   } catch(err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/gmail/list-planning', async (req, res) => {
+  const oauth2 = makeOAuth2Client();
+  if (!oauth2 || !gmailRefreshToken) return res.json([]);
+  oauth2.setCredentials({ refresh_token: gmailRefreshToken });
+  try {
+    const gmail = google.gmail({ version: 'v1', auth: oauth2 });
+    const listRes = await gmail.users.threads.list({ userId: 'me', maxResults: 500 });
+    const threads = listRes.data.threads || [];
+    const detailed = await Promise.all(threads.map(async t => {
+      const thread = await gmail.users.threads.get({
+        userId: 'me', id: t.id, format: 'metadata',
+        metadataHeaders: ['From', 'Subject', 'Date'],
+      });
+      const msg = thread.data.messages?.[0];
+      const headers = msg?.payload?.headers || [];
+      const h = name => headers.find(hdr => hdr.name === name)?.value || '';
+      return { id: t.id, from: h('From'), subject: h('Subject') || '(no subject)', snippet: thread.data.snippet || '', date: h('Date'), _account: 'planning' };
+    }));
+    res.json(detailed);
+  } catch(err) {
+    res.json([]);
   }
 });
 

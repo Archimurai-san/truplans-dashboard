@@ -313,7 +313,7 @@ function matchProject(from, subject = '') {
 }
 
 
-function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '', userEmail = '' }) {
+function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '', userEmail = '', onEmailTemplate }) {
   const [connected, setConnected] = useState(null);
   const [gmailEmail, setGmailEmail] = useState('');
   const [loading, setLoading] = useState(true);
@@ -343,16 +343,24 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   };
 
   const fetchThreads = () => {
-    const url = userEmail
+    const personalUrl = userEmail
       ? `${API_BASE}/api/gmail/list?userEmail=${encodeURIComponent(userEmail)}`
       : `${API_BASE}/api/gmail/list`;
-    fetch(url)
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) { setError(data.error); } else { onSetThreads?.(data); }
-        setLoading(false);
-      })
-      .catch(() => { setError('Failed to load emails'); setLoading(false); });
+    const planningUrl = `${API_BASE}/api/gmail/list-planning`;
+    Promise.all([
+      fetch(personalUrl).then(r => r.json()).catch(() => ({ error: 'Failed' })),
+      fetch(planningUrl).then(r => r.json()).catch(() => []),
+    ]).then(([personal, planning]) => {
+      if (personal.error) { setError(personal.error); setLoading(false); return; }
+      const personalTagged = (Array.isArray(personal) ? personal : []).map(t => ({ ...t, _account: 'personal' }));
+      const planningTagged = Array.isArray(planning) ? planning : [];
+      const seen = new Set();
+      const merged = [...personalTagged, ...planningTagged]
+        .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      onSetThreads?.(merged);
+      setLoading(false);
+    });
   };
 
   const openThread = (t) => {
@@ -423,6 +431,12 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   if (error) return (
     <div style={centerWrap}>
       <div style={{ fontSize: 12, color: 'var(--sla-red-text)', fontFamily: 'monospace' }}>{error}</div>
+      {error.includes('invalid_grant') || error.includes('Invalid Credentials') ? (
+        <button
+          onClick={() => { window.electronAPI?.openExternal(`${API_BASE}/api/gmail/auth${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`) || window.open(`${API_BASE}/api/gmail/auth${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`, '_blank'); }}
+          style={{ padding: '8px 20px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace', fontWeight: 700 }}
+        >Reconnect Gmail</button>
+      ) : null}
       <button onClick={checkStatus} style={{ padding: '7px 18px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace' }}>Retry</button>
     </div>
   );
@@ -434,7 +448,7 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
         Link your Google account to view your inbox here. A browser window will open to complete sign-in.
       </div>
       <button
-        onClick={() => window.open(`${API_BASE}/api/gmail/auth${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`, '_blank')}
+        onClick={() => window.electronAPI?.openExternal(`${API_BASE}/api/gmail/auth${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`) || window.open(`${API_BASE}/api/gmail/auth${userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : ''}`, '_blank')}
         style={{ padding: '10px 28px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '1px' }}
       >
         CONNECT GMAIL
@@ -476,8 +490,11 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
           >
             {!selectedThread && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden', alignItems: 'flex-start' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.from}>
-                  {formatFrom(t.from)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-bright)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={t.from}>
+                    {formatFrom(t.from)}
+                  </div>
+                  {t._account === 'planning' && <span style={{ fontSize: 8, background: '#1a3a5c', color: '#5ab4f5', borderRadius: 3, padding: '1px 4px', fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 }}>planning</span>}
                 </div>
                 {(() => {
                   const p = matchProject(t.from, t.subject);
@@ -520,6 +537,14 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
           <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'monospace', marginTop: 2 }}>{formatDate(selectedThread.date)}</div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {(() => {
+            const matched = matchProject(selectedThread.from, selectedThread.subject);
+            const projId = matched ? matched.split(' · ')[0] : null;
+            const proj = projId ? projects.find(p => p.id === projId) : null;
+            return proj && onEmailTemplate ? (
+              <button onClick={() => onEmailTemplate(proj)} style={{ background: 'none', border: '1px solid #27ae60', color: '#27ae60', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontFamily: 'monospace', fontWeight: 700 }}>✉ Use Template</button>
+            ) : null;
+          })()}
           <button
             onClick={() => { setReplyOpen(o => !o); setReplyStatus(null); }}
             style={{ background: replyOpen ? 'var(--accent)' : 'none', border: '1px solid var(--accent)', color: replyOpen ? '#fff' : 'var(--accent)', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontFamily: 'monospace', fontWeight: 700 }}

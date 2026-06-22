@@ -1,34 +1,54 @@
-# CLAUDE.md — TruPlans Dashboard
+# CLAUDE.md — TruPlans Dashboard (complete project memory)
 
-This file is read automatically at the start of every Claude Code session.
-It is the project's standing memory. Keep it current.
+Read automatically at the start of every Claude Code session. This is the project's
+full standing memory: how to work, what's done, the decisions, the next step, the
+roadmap, and the final goal. Keep it current as work progresses.
 
-## How to work with Radovan (read first, every time)
-- Go **one small step at a time**, slowly. Explain plainly, no jargon dumps.
+---
+
+## 1. How to work with Radovan (read first, every time)
+- Go **one small step at a time**, slowly. Plain language, no jargon dumps.
 - **Do NOT** throw multiple tools, paths, or options at him at once.
 - **Confirm before any database change.**
 - **Show the diff before saving** any file edit.
-- **Test in `npm run dev`** and verify it works before ever building an installer.
-- Version every meaningful change for clean rollback points.
+- **Test in `npm run dev`** and verify before ever building an installer.
+- **Version every meaningful change** (e.g. 1.2.0 -> 1.2.1) for clean rollback points.
 - Radovan is the architect, not a deep developer — he runs the commands; you write the code and tell him exactly where it goes.
 
-## The project
+## 2. The project
 TruPlans Dashboard — Windows desktop app for TruPlans Inc (client CEO: Chris Doering).
 Stack: Electron + React + Vite + Express (`server.js`) + Supabase + Anthropic API.
 - Repo: `Archimurai-san/truplans-dashboard`, branch `modular-restructure`
 - Local path: `C:\TruPlans\ARHIVA\truplans-dashboard`
 - Supabase project id: `clskmcueoaoslacskjzj`
-- Anthropic API key is stored in Supabase `app_config` and loaded into memory at startup (never written to disk).
+- Anthropic API key lives in Supabase `app_config`, loaded into memory at startup (never on disk).
+- `credentials.json` bundled into the installer via `extraResources` is **intentional** (Gmail OAuth on fresh installs) — do not "fix".
+- Team: designers Molly, Shirley, Willis, Cristina, Ayanna; management Chris (CEO/client), Ricardo, Lorena. Shared inbox `planning@truplans.com`.
 - Domain truth: drawing is done in **Chief Architect** (not generic "CAD"); **Matterport is for site-visit verification/reference, not import**.
+- Three contract formats: TruPlans INC, CALOFT CORP, TruAdditions Corp.
+- Build pipeline: `npm run electron:build` -> Vite (React) -> esbuild (server bundle) -> electron-builder NSIS installer.
 
-## Current release
-**v1.1.1** — shipped, ready for the team. Gmail OAuth works on fresh installs (`credentials.json` bundled via `extraResources` — intentional, do not "fix").
+## 3. Current release
+**v1.2.0 shipped** (Jun 2026): Task KB, Gantt week zones + designer filter + year switching,
+maps CSP fix, Inbox Gmail connect fix + planning@ merged endpoint, Contract Analyser
+duplicate fix, API key rotated to Supabase. Next: v1.2.1 installer with Inbox fixes.
+
+## 3a. Build Status (per Build Status Map — Jun 20 2026, 47% complete)
+| Section | Status |
+|---|---|
+| A-01 Core App & Infrastructure | 6/7 — Auto-updater pending |
+| A-02 Contract Analyser | 3/5 — Scope of Work redesign + PDF Open button pending |
+| A-03 Project Management | 4/7 — Action button row, Rename, Status menu pending |
+| A-04 Tasks & Workflow KB | 4/4 — DONE in v1.2.0 |
+| A-05 Email | 2/3 — Email Agent tab pending |
+| A-06 Zoning Knowledge Base | 4/9 — Foundation built (see below) |
+| A-07 Data Layer / v2 Cloud | 1/4 — Cloud sync, password login, realtime pending |
+| A-08 Distribution & Rollout | 1/4 — User guide + Google Drive upload pending |
+| A-09 v3 Commercial SaaS | 0/6 — Future |
 
 ---
 
-## ACTIVE WORK: Task Knowledge Base (v1.2)
-A "how to" guide attached to each of the 23 workflow steps (5.1–5.23), shown in two
-places, editable by the whole team, versioned on every edit.
+## 4. Task Knowledge Base (the feature just built)
 
 ### DONE — live in Supabase, do NOT rebuild
 Table `public.task_instructions`:
@@ -39,34 +59,94 @@ Table `public.task_instructions`:
 - Partial unique indexes: one default per step (`city IS NULL`), one override per `step+city`.
 - `BEFORE UPDATE` trigger auto-sets `updated_at = now()` and `version = version + 1`.
   **The app must NEVER write `version` or `updated_at` itself.**
-- All 23 step defaults seeded (5.1–5.23), each `version 1`, plus one Irvine override for 5.4.
+- All 23 step defaults seeded (5.1-5.23), each `version 1`, plus one Irvine override for 5.4.
 
-### Locked design decisions (editor)
+### Locked design decisions
 - **Inline** edit/save (no popup), in both surfaces.
 - **Open to the whole team** — anyone signed in can edit.
 - Save **auto-stamps the signed-in Google user** into `last_updated_by` (no manual dropdown).
-- Every save bumps `version` via the DB trigger. Read mode shows e.g. "v3 · by Molly".
-- **Links editor is in the first build** (add/edit/remove label+url rows — where changing city portal URLs live).
+- Every save bumps `version` via the DB trigger. Read mode shows e.g. "v3 - by Molly".
+- **Links editor is included** (add/edit/remove label+url rows — where changing city portal URLs live).
 - Tasks tab = right-hand **side panel**. Project Detail = **inline expansion**. Same data/components.
 
-### Fallback rule (important)
+### Fallback rule
 To show a step's instructions for a project in city X:
-1. look for `(step, city = X)`; 2. if none, fall back to `(step, city IS NULL)` default.
+1) look for `(step, city = X)`; 2) if none, fall back to `(step, city IS NULL)` default.
 
-### COMPLETED — Task Knowledge Base v1.2 is fully built and tested
+---
 
-### Build order — ALL DONE
-1. (done) Supabase table + 23 defaults
-2. (done) server endpoint `GET /api/supabase/task-instructions`
-3. (done) Tasks tab HOW TO column + floating modal
-4. (done) Project Detail inline expansion (`?` button on each step pill)
-5. (done) Inline editor — body text, checklist, links; auto-stamp signed-in Google user into `last_updated_by`; server endpoint `PUT /api/supabase/task-instructions/:id`
-6. (done) Tested in `npm run dev` — save confirmed working
+## 5. ROADMAP — work top to bottom, nearest first
+Confirm the (!) decisions with Radovan before building each one.
 
-### Key implementation notes
-- `PUT /api/supabase/task-instructions/:id` in server.js — only writes `body_text`, `checklist`, `links`, `last_updated_by`. NEVER `version` or `updated_at` (DB trigger handles those).
-- HowToPanel (App.jsx) is a stateful component with full inline editor. `startEdit` prop opens it directly in edit mode.
-- Project Detail "Edit" button calls `onEditInstruction(stepId)` → App.jsx opens HowToPanel with `startEdit:true`.
-- After save, `taskInstructions` state is updated in App.jsx so both surfaces refresh immediately.
-- `last_updated_by` = `session?.user?.email` (Google) falling back to `currentUser` (local name).
-- Server restart note: when `server.js` is edited, `npm run dev` must be fully stopped (Ctrl+C) and restarted — the running Node process does NOT hot-reload.
+### v1.3 — Project Detail + Email
+1. **Scope of Work redesign** (Project Detail): Contract Analyser **Y -> green check, N -> red X**.
+   (!) Decide first: (a) live pull vs saved snapshot; (b) manual override allowed?; (c) field mapping across the 3 contract formats.
+2. **Permanent action button row** on every Project Detail page (top-right): **Delete | Workflow | Assign Team | Contracts | Close**. Simplify the "In Progress" status menu — keep the status changer only, drop duplicated summary/buttons.
+3. **Rename Project Name button** — edit a project name after creation.
+4. **Email Agent tab** — four templates with dynamic merge fields from project records:
+   Schedule Zoom Design Meeting (Willis voice); Follow-up After Design Meeting (Molly voice);
+   Design Meeting Summary (scope, change orders + pricing, electrical allowances, Drive/Matterport/YouTube links, next steps);
+   Planning Dept Zoning Inquiry (zoning, APN, tract, lot, setbacks, FAR, height; auto-fills address + scope).
+   (!) Decide first: how the existing v1.0 Gmail subject pre-fill relates to this new read/categorize/draft tab.
+
+### Reliability & housekeeping (low-risk, alongside the above)
+- **Auto-updater** — silent updates, data preserved across versions.
+- **Contract PDF "Open" button** reliability on all machines.
+- **Gantt year switching** (currently hardcoded to 2026).
+- Remove unused hardcoded API key in `App.jsx`; rotate `config.json` key if ever exposed.
+- Verify on team machines: sign-in persistence on fresh installs; cross-computer sync (change on one -> hard-refresh other within 30s); Change Job # migration behaves correctly.
+
+### v2.0 — Multi-user cloud (~Q3 2026)
+- **Password login**, roles: Designer vs Management.
+- Designers see all their own projects (active + completed); Chris + Radovan see all projects across all designers.
+- **Real-time sync** across the team (data already in Supabase — extend it).
+- **Activity log** — who changed what, when (reuse the `last_updated_by` + `version` + trigger pattern).
+
+### v2/v3 — Geographic Property Map + KPI (for Chris)
+- Connect to management's existing Google Map.
+- One **Redfin listing URL per property** — store the URL, do NOT scrape (no public API).
+- Roll pins into **coverage %** by street/city/county using public GIS for the denominator.
+- Extends Chris's "Home Evaluation App" idea.
+
+---
+
+## 6. FINAL GOAL (North Star, ~2027) — do NOT build for this yet
+Turn TruPlans Dashboard from an internal tool into a **commercial SaaS product sold to
+other California residential design firms**:
+- **CBC/CRC building-code check** built in — AI tells the designer which codes apply.
+- **Multi-tenant database** — each firm isolated.
+- Sell at ~**$49-99/month**.
+- **Mobile app** (iOS / Android).
+- **AI Project Assistant** — natural-language queries.
+- Patent filing for core innovations.
+- Vehicle: **Marusic Precision Design LLC**.
+- (!) Guardrail: this is the destination, not today's work. Build current features simply;
+  just avoid hardcoding single-firm assumptions that would block multi-tenancy later.
+
+## 7. A-06 Zoning Knowledge Base (foundation already built — do NOT rebuild)
+
+### DONE in Supabase
+- Table `public.zoning_standards` (jsonb + version trigger) — live
+- RM-1-1 proof row stored and queried back — confirmed working
+
+### DONE as local scripts (not yet wired into the app)
+- `structureZoningSection.js` — Stage 2 structurer: takes raw text of one code section,
+  calls Claude API, returns normalized zoning JSON ready for Supabase.
+  Platform-agnostic — works with eCode360, Municode, American Legal, San Diego PDF.
+  Pipeline: fetch adapter → structureZoningSection.js → Supabase store.
+- `fetchSanDiego.js` — PDF adapter for San Diego municipal code
+
+### Active task (A-06)
+- Run `fetchSanDiego.js` locally → reconcile RM-1-1 against real Table 131-04G → fix effective date
+
+### Pending (do not build yet)
+- eCode360 + Municode adapters (28 OC cities)
+- Expand: Irvine · Carlsbad · Mission Viejo
+- pgvector prose chunks (RAG)
+- Surface in TPD — Zoning tab vs Analyser vs Detail
+
+---
+
+## 8. On hold (Chris's adjacent ideas, not on the build list yet)
+- **Home Evaluation App** — feasibility tool for prospective clients.
+- **Cost Estimator** — construction cost estimate before a contract is signed.

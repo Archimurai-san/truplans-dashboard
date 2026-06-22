@@ -5,7 +5,7 @@ const { spawn } = require('child_process')
 const { autoUpdater } = require('electron-updater')
 
 autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = false
+autoUpdater.autoInstallOnAppQuit = true
 
 autoUpdater.on('update-available', info => {
   console.log('[updater] Update available:', info.version)
@@ -318,7 +318,7 @@ app.whenReady().then(() => {
         'Content-Security-Policy': [
           "default-src 'self' 'unsafe-inline' 'unsafe-eval';" +
           "connect-src 'self' http://localhost:3001 https://*.supabase.co wss://*.supabase.co https://api.anthropic.com;" +
-          "img-src 'self' data: blob: https://*.googleusercontent.com;" +
+          "img-src 'self' data: blob: https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org;" +
           "frame-src 'self' blob: data:;"
         ]
       }

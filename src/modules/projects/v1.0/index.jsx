@@ -346,8 +346,20 @@ Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if no
 {"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 
-function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields,onChangeJobNumber,taskInstructions=[],onEditInstruction=()=>{}}){
+function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onUpdateProject,onUpdateType,onPaymentUpdate,onPickPDF,onViewPDF,threads=[],onOpenThread,onUpdateName,onDelete,onWorkflow,onAssign,onContracts,onTogglePhase,onAnalyse,onUpdateFields,onSaveReminders,onPatchNow,onChangeJobNumber,taskInstructions=[],onEditInstruction=()=>{}}){
   const [editNotes,setEditNotes]=useState(project.notes||'');
+  const [editingNotes,setEditingNotes]=useState(false);
+  const [reminders,setReminders]=useState(Array.isArray(project.reminders)?project.reminders:[]);
+  const [newReminder,setNewReminder]=useState('');
+  const saveReminders=(next)=>{setReminders(next);onSaveReminders?.(project.id,next);};
+  const addReminder=()=>{const t=newReminder.trim();if(!t)return;saveReminders([...reminders,t]);setNewReminder('');};
+  const removeReminder=(i)=>saveReminders(reminders.filter((_,idx)=>idx!==i));
+  const parsedContact=useMemo(()=>parseNotes(project.notes||''),[]);
+  const [clientPhone,setClientPhone]=useState(project.clientPhone||(parsedContact.phone||''));
+  const [clientEmail,setClientEmail]=useState(project.clientEmail||(parsedContact.email||''));
+  const [clientAddress,setClientAddress]=useState(project.clientAddress||(parsedContact.address||''));
+  const CONTACT_DB={'clientPhone':'client_phone','clientEmail':'client_email','clientAddress':'client_address'};
+  const saveContact=(field,val)=>{onUpdateFields?.(project.id,{[field]:val});if(CONTACT_DB[field])onPatchNow?.(project.id,{[CONTACT_DB[field]]:val});};
   const [howToStepId,setHowToStepId]=useState(null);
   const getInstr=id=>taskInstructions.find(r=>r.workflow_step_id===id&&r.city===project.city)||taskInstructions.find(r=>r.workflow_step_id===id&&!r.city)||null;
   const [renaming,setRenaming]=useState(false);
@@ -400,6 +412,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
   const dueThisWeek=(currentBucket?.steps||[]).map(id=>({...PHASES_WILLIS_WORKFLOW.find(p=>p.id===id),status:getStepStatus(id)}));
   const behindSchedule=WEEK_BUCKETS.filter(b=>b.week<currentWeek).flatMap(b=>b.steps).filter(id=>getStepStatus(id)!=='Completed').map(id=>({...PHASES_WILLIS_WORKFLOW.find(p=>p.id===id),status:getStepStatus(id)}));
   const InfoRow=({label,value,href,onClick})=>value?(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:10}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:2,flexShrink:0}}>{label}</span>{href?<a href={href} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',wordBreak:'break-all'}}>{value}</a>:onClick?<span onClick={onClick} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',cursor:'pointer',wordBreak:'break-all'}}>{value}</span>:<span style={{fontSize:12,color:'var(--text-body)',wordBreak:'break-all'}}>{value}</span>}</div>):null;
+  const ContactField=({label,value,onChange,onBlur,href,placeholder})=>(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:8}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:7,flexShrink:0}}>{label}</span><div style={{flex:1,display:'flex',gap:6,alignItems:'center'}}><input value={value} onChange={e=>onChange(e.target.value)} onBlur={e=>onBlur(e.target.value)} placeholder={placeholder} style={{...S.input,fontSize:11,flex:1,padding:'4px 8px'}}/>{value&&href&&<a href={href} target="_blank" rel="noreferrer" style={{fontSize:10,color:'var(--accent)',fontFamily:'monospace',flexShrink:0,opacity:0.8}}>↗</a>}</div></div>);
   return(
     <div style={{animation:'slideInRight 0.2s ease-out'}}>
       <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:24,flexWrap:'wrap'}}>
@@ -433,6 +446,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             </div>
           )}
           <div style={{fontSize:12,color:'var(--text-muted)'}}>{project.client}{project.city&&` · ${project.city}`}</div>
+          {(()=>{const addr=parseNotes(project.notes||'').address;return addr?<div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',marginTop:2}}>📍 {addr}</div>:null;})()}
         </div>
         {(()=>{
           const anchor=slaAnchorDate(project);
@@ -476,9 +490,27 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
         })()}
         <SLABadge project={project}/>
         <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          {(()=>{
+            const CITY_RESOURCES={
+              'San Diego':{ zoningMap:'https://experience.arcgis.com/experience/dd3f4e26f10c4cf9a3101ca096c2eaa5#zoom_to_selection=true', municipalCode:'https://www.sandiego.gov/city-clerk/officialdocs/municipal-code/chapter-13' },
+              'Irvine':{ zoningMap:'https://www.cityofirvine.org/community-development/planning/zoning', municipalCode:'https://library.municode.com/ca/irvine/codes/zoning' },
+              'Carlsbad':{ zoningMap:'https://www.carlsbadca.gov/services/depts/planning/zoning.asp', municipalCode:'https://library.municode.com/ca/carlsbad/codes/code_of_ordinances?nodeId=TIT21ZO' },
+              'San Clemente':{ zoningMap:'https://san-clemente.org/departments/community-development/planning/', municipalCode:'https://library.municode.com/ca/san_clemente/codes/code_of_ordinances?nodeId=TIT17ZO' },
+              'Mission Viejo':{ zoningMap:'https://cityofmissionviejo.org/departments/planning/', municipalCode:'https://library.municode.com/ca/mission_viejo/codes/code_of_ordinances?nodeId=TIT9LAUSDE' },
+              'Rancho Santa Margarita':{ zoningMap:'https://www.cityofrsm.org/city-hall/departments/community-development/planning', municipalCode:'https://library.municode.com/ca/rancho_santa_margarita/codes/code_of_ordinances' },
+            };
+            const res=CITY_RESOURCES[project.city];
+            if(!res) return null;
+            const open=u=>window.electronAPI?.openExternal(u)||window.open(u,'_blank');
+            return(<>
+              <button onClick={()=>open(res.zoningMap)} style={{padding:'4px 10px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #2196f3',color:'#2196f3',background:'none'}} title={`${project.city} Zoning Map`}>🗺 Zoning Map</button>
+              <button onClick={()=>open(res.municipalCode)} style={{padding:'4px 10px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #2196f3',color:'#2196f3',background:'none'}} title={`${project.city} Municipal Code`}>📋 Municipal Code</button>
+            </>);
+          })()}
           <button onClick={onDelete} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #e74c3c',color:'#e74c3c',background:'none'}}>Delete</button>
           <button onClick={onWorkflow} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Workflow</button>
           <button onClick={onAssign} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-muted)',background:'none'}}>Assign Team</button>
+          <button onClick={onContracts} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid #f0a842',color:'#f0a842',background:'none'}}>Contracts</button>
           <button onClick={onBack} style={{padding:'4px 12px',fontSize:10,fontFamily:'monospace',cursor:'pointer',borderRadius:4,border:'1px solid var(--border-secondary)',color:'var(--text-body)',background:'none',fontWeight:700}}>✕ Close</button>
         </div>
       </div>
@@ -539,9 +571,6 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
         <div style={S.card}>
           <ST>Client Info</ST>
           <InfoRow label="Client" value={project.client}/>
-          <InfoRow label="Phone" value={phone} href={phone?`tel:${phone}`:undefined}/>
-          <InfoRow label="Email" value={email} href={email?`mailto:${email}`:undefined}/>
-          <InfoRow label="Address" value={address} onClick={address?()=>window.electronAPI?.openExternal(`https://maps.google.com/?q=${encodeURIComponent(address)}`):undefined}/>
           <InfoRow label="Start Date" value={project.start}/>
           <InfoRow label="Contract" value={project.contract>0?fmt$(project.contract):'Not set'}/>
           <InfoRow label="Phase" value={project.phase}/>
@@ -552,10 +581,58 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
               {PROJECT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <InfoRow label="DocuSign" value={docusign}/>
           <div style={{marginTop:16,borderTop:'1px solid var(--border-primary)',paddingTop:16}}>
-            <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:6}}>Notes</div>
-            <textarea value={editNotes} onChange={e=>{const v=e.target.value;setEditNotes(v);dbt(`notes-${project.id}`,()=>onUpdateProject(project.id,v));}} style={{...S.input,height:100,resize:'vertical',fontSize:11}} placeholder="Add project notes..."/>
+            <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:10}}>Contact</div>
+            <ContactField label="Phone" value={clientPhone} onChange={setClientPhone} onBlur={v=>saveContact('clientPhone',v)} href={clientPhone?`tel:${clientPhone}`:undefined} placeholder="(555) 000-0000"/>
+            <ContactField label="Email" value={clientEmail} onChange={setClientEmail} onBlur={v=>saveContact('clientEmail',v)} href={clientEmail?`mailto:${clientEmail}`:undefined} placeholder="client@email.com"/>
+            <ContactField label="Address" value={clientAddress} onChange={setClientAddress} onBlur={v=>saveContact('clientAddress',v)} href={clientAddress?`https://maps.google.com/?q=${encodeURIComponent(clientAddress)}`:undefined} placeholder="123 Main St, Los Angeles, CA 90001"/>
+          </div>
+          <div style={{marginTop:16,borderTop:'1px solid var(--border-primary)',paddingTop:16,display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+            {/* NOTES */}
+            <div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px'}}>Notes</div>
+                <button onClick={()=>setEditingNotes(e=>!e)} style={{background:'none',border:'1px solid var(--border-secondary)',color:'var(--text-muted)',cursor:'pointer',fontSize:9,fontFamily:'monospace',padding:'2px 8px',borderRadius:3}}>{editingNotes?'Done':'Edit'}</button>
+              </div>
+              {editingNotes?(
+                <textarea value={editNotes} onChange={e=>{const v=e.target.value;setEditNotes(v);dbt(`notes-${project.id}`,()=>onUpdateProject(project.id,v));}} style={{...S.input,height:120,resize:'vertical',fontSize:11}} placeholder="Add project notes..." autoFocus/>
+              ):(
+                <div onClick={()=>setEditingNotes(true)} style={{cursor:'text',minHeight:60,padding:'4px 0'}}>
+                  {editNotes.trim()?(
+                    editNotes.split('\n').map((line,i)=>{
+                      const kv=line.match(/^([^:]{1,30}):\s*(.+)$/);
+                      if(kv)return(
+                        <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:5}}>
+                          <span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:76,textTransform:'uppercase',letterSpacing:'0.5px',paddingTop:1,flexShrink:0}}>{kv[1]}</span>
+                          <span style={{fontSize:11,color:'var(--text-body)',wordBreak:'break-all'}}>{kv[2]}</span>
+                        </div>
+                      );
+                      return line.trim()?<p key={i} style={{fontSize:11,color:'var(--text-body)',margin:'0 0 5px 0',lineHeight:1.5}}>{line}</p>:null;
+                    })
+                  ):(
+                    <span style={{fontSize:11,color:'var(--text-ghost)',fontFamily:'monospace'}}>Click to add notes…</span>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* REMINDERS */}
+            <div>
+              <div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:8}}>To Do</div>
+              <div style={{marginBottom:8}}>
+                {reminders.length===0&&<div style={{fontSize:11,color:'var(--text-ghost)',fontFamily:'monospace',marginBottom:8}}>No reminders yet.</div>}
+                {reminders.map((r,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'flex-start',gap:6,marginBottom:5}}>
+                    <span style={{color:'var(--accent)',fontFamily:'monospace',fontSize:12,flexShrink:0,marginTop:1}}>—</span>
+                    <span style={{fontSize:11,color:'var(--text-body)',flex:1,lineHeight:1.4}}>{r}</span>
+                    <button onClick={()=>removeReminder(i)} style={{background:'none',border:'none',color:'var(--text-ghost)',cursor:'pointer',fontSize:12,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <input value={newReminder} onChange={e=>setNewReminder(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addReminder()} placeholder="Add reminder…" style={{...S.input,fontSize:11,flex:1,padding:'4px 8px'}}/>
+                <button onClick={addReminder} style={{background:'var(--accent)',border:'none',color:'#000',cursor:'pointer',fontSize:11,fontFamily:'monospace',fontWeight:700,padding:'4px 10px',borderRadius:4}}>+</button>
+              </div>
+            </div>
           </div>
         </div>
         <div style={S.card}>
@@ -572,6 +649,7 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
             <div style={{fontSize:9,color:'var(--sla-red-text)',fontFamily:'monospace',letterSpacing:'1px',textTransform:'uppercase',marginTop:12,marginBottom:8}}>External 5.21–5.23 — SLA Paused</div>
             <div style={{display:'flex',gap:6}}>
               {externalSteps.map(step=>{const st=getStepStatus(step.id);return<div key={step.id} onClick={()=>onTogglePhase?.(project.id,step.id)} title={`Click to toggle ${step.id}`} style={{flex:1,display:'flex',alignItems:'center',gap:6,padding:'6px 10px',borderRadius:4,background:SBG[st],border:`1px solid ${SCOL[st]}44`,cursor:'pointer',userSelect:'none'}}><span style={{fontSize:9,fontFamily:'monospace',color:SCOL[st],fontWeight:700,minWidth:28}}>{step.id}</span><span style={{fontSize:9,color:SCOL[st],flex:1}}>{step.label}</span>{getInstr(step.id)&&<span onClick={e=>{e.stopPropagation();setHowToStepId(howToStepId===step.id?null:step.id);}} style={{fontSize:9,color:SCOL[st],opacity:0.7,cursor:'pointer',marginLeft:4,fontFamily:'monospace',flexShrink:0}}>?</span>}</div>;})}
+            </div>
             {howToStepId&&(()=>{const instr=getInstr(howToStepId);if(!instr)return null;return(
               <div style={{marginTop:16,borderTop:'1px solid var(--border-primary)',paddingTop:14}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
@@ -590,7 +668,6 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
                 {Array.isArray(instr.links)&&instr.links.length>0&&<div><div style={{fontSize:9,color:'var(--text-dim)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:6}}>Links</div>{instr.links.map((lk,i)=><div key={i} style={{marginBottom:4}}><a href={lk.url} target="_blank" rel="noreferrer" style={{fontSize:10,color:'var(--accent)',textDecoration:'none',fontFamily:'monospace'}}>{lk.label||lk.url}</a></div>)}</div>}
               </div>
             );})()}
-            </div>
           </div>
         </div>
         <div style={S.card}>

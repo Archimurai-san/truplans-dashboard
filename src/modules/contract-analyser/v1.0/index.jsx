@@ -5,7 +5,7 @@ import { S, fmt$, doOpenPath, parseNotes, Av, Sb, Pb, ST, SLABadge, getSLAStatus
 const ANALYSE_PROMPT=`You are analysing a construction or architectural services contract PDF.
 
 STEP 1 — DETECT FORMAT:
-- If the document contains "CALOFT CORP" or "HIGH CEILING CONVERSION" → FORMAT 2 (CALOFT Construction Contract)
+- If the document contains "CALOFT CORP" → FORMAT 2 (CALOFT Construction Contract)
 - If the document contains "TRUADDITIONS CORP" → FORMAT 3 (TruAdditions Construction Contract)
 - Otherwise → FORMAT 1 (TruPlans Work Order)
 
@@ -107,7 +107,7 @@ function AnalyseModal({project,onClose,onSave}){
     try{
       const b64=filePath?._blob ? filePath.data : await window.electronAPI?.readFileBase64(filePath);
       if(!b64)throw new Error('Could not read file — check the path is accessible');
-      const payload={model:'claude-sonnet-4-20250514',max_tokens:6000,messages:[{role:'user',content:[
+      const payload={model:'claude-sonnet-4-6',max_tokens:6000,messages:[{role:'user',content:[
         {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
         {type:'text',text:ANALYSE_PROMPT}
       ]}]};
@@ -158,6 +158,7 @@ function AnalyseModal({project,onClose,onSave}){
       code:String(m.code||''),label:String(m.description||m.code||''),
       desc:String(m.trigger||''),amount:Number(m.amount)||0,status:'Pending'
     }));
+    const cityFromAddr=e.fullAddress?(e.fullAddress.match(/,\s*([A-Za-z\s]+),?\s*(?:CA\s*)?\d{5}/)?.[1]?.trim()||null):null;
     onSave(project.id,{
       client:clientName||project.client,
       contract:Number(e.grandTotal)||0,
@@ -167,7 +168,8 @@ function AnalyseModal({project,onClose,onSave}){
       newWork:e.newWork||[],
       demoWork:e.demoWork||[],
       contractPath:filename,
-      contracts:[...(project.contracts||[]),{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
+      ...(cityFromAddr&&!project.city?{city:cityFromAddr}:{}),
+      contracts:project.contracts&&project.contracts.length>0?project.contracts.map((c,i)=>i===0?{...CONTRACT_TEMPLATE,...e,id:c.id}:c):[{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
     },milestones);
     setPhase('saved');
     setTimeout(()=>onClose(),2200);
@@ -363,13 +365,21 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
     if(!pdfTxt.trim())return;
     setAnalyzing(true);
     try{
-      const result=await window.electronAPI.analyseContract({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:`You are an expert architectural project manager at TruPlans Inc., a California residential design firm. Analyze this contract and return ONLY valid JSON (no markdown, no backticks):
+      const payload={model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:`You are an expert architectural project manager at TruPlans Inc., a California residential design firm. Analyze this contract and return ONLY valid JSON (no markdown, no backticks):
 {"summary":"2-3 sentence overview","scopeSummary":"included items as bullet list with \\n separators","paymentSummary":"payment schedule summary","obligations":"what TruPlans must deliver","riskFlags":[{"level":"HIGH|MEDIUM|LOW","text":"description"}],"actionItems":[{"done":false,"text":"action item"}]}
 
 CONTRACT:
-${pdfTxt.slice(0,8000)}`}]});
-      if(!result.ok)throw new Error(result.error);
-      const d=result.data;
+${pdfTxt.slice(0,8000)}`}]};
+      let d;
+      if(window.electronAPI?.analyseContract){
+        const result=await window.electronAPI.analyseContract(payload);
+        if(!result.ok)throw new Error(result.error);
+        d=result.data;
+      } else {
+        const res=await fetch(`${API_BASE}/api/claude`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(!res.ok)throw new Error(`Server error ${res.status}`);
+        d=await res.json();
+      }
       const raw=d.content?.[0]?.text||"{}";
       const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
       const final={...parsed,generatedAt:new Date().toISOString().slice(0,10)};
@@ -385,6 +395,7 @@ ${pdfTxt.slice(0,8000)}`}]});
   const togHC=id=>setCtrs(prev=>prev.map((c,i)=>i!==ci?c:{...c,hiddenConditionFlags:c.hiddenConditionFlags.map(h=>h.id!==id?h:{...h,flagged:!h.flagged})}));
   const addCO=()=>{if(!newCO.description)return;setCtrs(prev=>prev.map((c,i)=>i!==ci?c:{...c,changeOrders:[...c.changeOrders,{...newCO,id:`CO-${Date.now()}`,amount:parseFloat(newCO.amount)||0}]}));setNewCO({date:"",description:"",amount:"",status:"Pending"});};
   const addContract=()=>{const nc={id:`CTR-${Date.now()}`,type:"Design + Construction",contractor:"",contractorLic:"",signedDate:"",totalAmount:0,estStart:"",estCompletion:"",constructionWeeks:"",docusignId:"",...JSON.parse(JSON.stringify(CONTRACT_TEMPLATE)),aiAnalysis:null};setCtrs(p=>[...p,nc]);setCi(ctrs.length);};
+  const deleteContract=(i,e)=>{e.stopPropagation();if(!window.confirm('Remove this contract?'))return;const next=ctrs.filter((_,idx)=>idx!==i);setCtrs(next);onUpdate?.({contracts:next});setCi(Math.max(0,Math.min(ci,next.length-1)));};
   const clearAI=()=>{setAiRes(null);setCtrs(prev=>prev.map((c,i)=>i===ci?{...c,aiAnalysis:null}:c));};
 
   const CTABS=["overview","phases","design scope","construction scope","payments","homeowner","hidden conditions","change orders","ai analysis"];
@@ -394,8 +405,8 @@ ${pdfTxt.slice(0,8000)}`}]});
     <>
       {/* OVERVIEW */}
       {ctab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        {[["Contractor",ctr.contractor],["License",ctr.contractorLic],["Contract Type",ctr.type],["Signed",ctr.signedDate],["DocuSign ID",ctr.docusignId],["Construction",ctr.constructionWeeks+" weeks"]].map(([l,v])=>(
-          <div key={l} style={{background:"#0d0d1a",padding:"10px 12px",borderRadius:4}}><div style={{fontSize:9,color:"#555",fontFamily:"monospace",letterSpacing:"1px",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:11,color:"#ccc",marginTop:3}}>{v||"—"}</div></div>
+        {[["Contractor",ctr.contractor],["License",ctr.contractorLic],["Contract Type",ctr.type],["Signed",ctr.signedDate],["DocuSign ID",ctr.docusignId],["Construction",ctr.constructionWeeks?(ctr.constructionWeeks+" weeks"):"—"]].map(([l,v])=>(
+          <div key={l} style={{background:"var(--bg-secondary)",padding:"10px 12px",borderRadius:4}}><div style={{fontSize:9,color:"#555",fontFamily:"monospace",letterSpacing:"1px",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:11,color:"var(--text-body)",marginTop:3}}>{v||"—"}</div></div>
         ))}
       </div>}
 
@@ -416,7 +427,7 @@ ${pdfTxt.slice(0,8000)}`}]});
           const isExp=expandedPhase===ph.id;
           const isIP=ph.status==="in_progress";
           return(
-            <div key={ph.id} style={{marginBottom:3,borderRadius:5,overflow:"hidden",border:`1px solid ${isExp?"#2a2a4a":"#1a1a2e"}`,...(isIP?{borderLeft:"3px solid #3498db"}:{})}}>
+            <div key={ph.id} style={{marginBottom:3,borderRadius:5,overflow:"hidden",border:`1px solid ${isExp?"var(--border-primary)":"var(--border-secondary)"}`,...(isIP?{borderLeft:"3px solid #3498db"}:{})}}>
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:ph.status==="done"?"#0d1a0d":isIP?"#0a0d14":"#0d0d1a",cursor:"pointer"}} onClick={()=>setExpandedPhase(isExp?null:ph.id)}>
                 <div onClick={e=>{e.stopPropagation();cyclePhase(ph.id);}} style={{width:17,height:17,borderRadius:3,border:`1.5px solid ${ph.status==="done"?"#27ae60":isIP?"#3498db":"#333"}`,background:ph.status==="done"?"#27ae6033":isIP?"#3498db22":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer"}}>
                   {ph.status==="done"&&<span style={{color:"#27ae60",fontSize:10,lineHeight:1}}>✓</span>}
@@ -428,7 +439,7 @@ ${pdfTxt.slice(0,8000)}`}]});
                 <span style={{color:"#2a2a4a",fontSize:9,marginLeft:2}}>{isExp?"▲":"▼"}</span>
               </div>
               {isExp&&(
-                <div style={{padding:"10px 14px",background:"#080810",borderTop:"1px solid #1a1a2e"}}>
+                <div style={{padding:"10px 14px",background:"var(--bg-page)",borderTop:"1px solid #1a1a2e"}}>
                   <div style={{fontSize:10,color:"#555",lineHeight:1.65,marginBottom:10,fontStyle:"italic"}}>{def?.description}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 90px 140px",gap:8,marginBottom:8}}>
                     <div><label style={S.label}>Notes</label><input style={{...S.input,fontSize:10}} value={ph.notes} onChange={e=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,notes:e.target.value}:p))} placeholder="Notes..."/></div>
@@ -447,11 +458,11 @@ ${pdfTxt.slice(0,8000)}`}]});
         };
         return(
           <div>
-            <div style={{background:"#0a0a15",borderRadius:8,padding:"16px",marginBottom:16,border:"1px solid #1e1e3a"}}>
-              <div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:8}}>{project.name}</div>
+            <div style={{background:"var(--bg-page)",borderRadius:8,padding:"16px",marginBottom:16,border:"1px solid var(--border-primary)"}}>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--text-bright)",marginBottom:8}}>{project.name}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                 <div style={{width:8,height:8,borderRadius:"50%",background:zc,flexShrink:0}}/>
-                <span style={{fontSize:11,color:"#ccc",fontFamily:"monospace"}}>Week {week} of 8 (Target)</span>
+                <span style={{fontSize:11,color:"var(--text-body)",fontFamily:"monospace"}}>Week {week} of 8 (Target)</span>
                 <span style={{fontSize:9,color:daysUntilTarget>0?"#555":"#e74c3c",fontFamily:"monospace"}}>{daysUntilTarget>0?daysUntilTarget+" days left":Math.abs(daysUntilTarget)+" days over"}</span>
               </div>
               <div style={{fontSize:9,color:"#444",fontFamily:"monospace",marginBottom:10,letterSpacing:"0.5px"}}>Started: {sd}  ·  Target: {td}</div>
@@ -464,9 +475,9 @@ ${pdfTxt.slice(0,8000)}`}]});
             <div style={{fontSize:10,color:"#e94560",letterSpacing:"1.5px",fontFamily:"monospace",marginBottom:10,fontWeight:700}}>TRUPLANS WORK (8-WEEK SLA)</div>
             {iPhases.map(ph=>renderPhaseRow(ph))}
             <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 10px",opacity:0.45}}>
-              <div style={{flex:1,height:1,background:"#2a2a4a"}}/>
+              <div style={{flex:1,height:1,background:"var(--border-secondary)"}}/>
               <span style={{fontSize:8,color:"#555",fontFamily:"monospace",whiteSpace:"nowrap",letterSpacing:"1.5px"}}>— END OF TRUPLANS CLOCK —</span>
-              <div style={{flex:1,height:1,background:"#2a2a4a"}}/>
+              <div style={{flex:1,height:1,background:"var(--border-secondary)"}}/>
             </div>
             <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1.5px",fontFamily:"monospace",marginBottom:10,fontWeight:700}}>EXTERNAL WAITING (CITY-CONTROLLED)</div>
             {ePhases.map(ph=>renderPhaseRow(ph))}
@@ -511,7 +522,7 @@ ${pdfTxt.slice(0,8000)}`}]});
       {/* PAYMENTS */}
       {ctab==="payments"&&<div>
         <ST>Payment Milestone Tracker</ST>
-        <div style={{marginBottom:12,fontSize:10,color:"#f0a842",padding:"8px 12px",background:"#1a0d00",borderRadius:4,borderLeft:"3px solid #f0a842",fontFamily:"monospace"}}>
+        <div style={{marginBottom:12,fontSize:10,color:"#f0a842",padding:"8px 12px",background:"rgba(240,168,66,0.1)",borderRadius:4,borderLeft:"3px solid #f0a842",fontFamily:"monospace"}}>
           ⚠ Payments are milestone-based, NOT trade-cost based. Late = 3%/week penalty + possible project suspension.
         </div>
         {ctr.paymentMilestones.map((m,i)=>(
@@ -524,7 +535,7 @@ ${pdfTxt.slice(0,8000)}`}]});
             <div style={{fontSize:13,fontWeight:700,color:m.paid?"#52d68a":"#f0a842",fontFamily:"monospace"}}>{fmt$(m.amount)}</div>
           </div>
         ))}
-        <div style={{display:"flex",justifyContent:"space-between",padding:"12px",background:"#0a0a15",borderRadius:6,marginTop:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px",background:"var(--bg-page)",borderRadius:6,marginTop:8}}>
           <span style={{fontSize:11,color:"#888",fontFamily:"monospace"}}>PAID / TOTAL</span>
           <span style={{fontSize:14,fontWeight:700,color:"#52d68a",fontFamily:"monospace"}}>{fmt$(paid)} / {fmt$(effectiveTotal)}</span>
         </div>
@@ -533,7 +544,7 @@ ${pdfTxt.slice(0,8000)}`}]});
       {/* HOMEOWNER OBLIGATIONS */}
       {ctab==="homeowner"&&<div>
         <ST>Homeowner Obligations Checklist</ST>
-        <div style={{marginBottom:12,fontSize:10,color:"#3498db",padding:"8px 12px",background:"#0a0f1a",borderRadius:4,borderLeft:"3px solid #3498db",fontFamily:"monospace"}}>
+        <div style={{marginBottom:12,fontSize:10,color:"#3498db",padding:"8px 12px",background:"rgba(52,152,219,0.08)",borderRadius:4,borderLeft:"3px solid #3498db",fontFamily:"monospace"}}>
           Track these to prevent delays. Missing items = your deliverables get blocked.
         </div>
         {ctr.homeownerObligations.map(o=>(
@@ -547,7 +558,7 @@ ${pdfTxt.slice(0,8000)}`}]});
       {/* HIDDEN CONDITIONS */}
       {ctab==="hidden conditions"&&<div>
         <ST color="#e74c3c">Hidden Condition Risk Flags (§4.0 / §4.1)</ST>
-        <div style={{marginBottom:12,fontSize:10,color:"#e74c3c",padding:"8px 12px",background:"#1a0808",borderRadius:4,borderLeft:"3px solid #e74c3c",fontFamily:"monospace"}}>
+        <div style={{marginBottom:12,fontSize:10,color:"#e74c3c",padding:"8px 12px",background:"rgba(231,76,60,0.08)",borderRadius:4,borderLeft:"3px solid #e74c3c",fontFamily:"monospace"}}>
           Per §4.0–4.1: hidden conditions = additional cost to homeowner. Flag any that arise during design or construction.
         </div>
         {ctr.hiddenConditionFlags.map(h=>(
@@ -562,19 +573,19 @@ ${pdfTxt.slice(0,8000)}`}]});
       {/* CHANGE ORDERS */}
       {ctab==="change orders"&&<div>
         <ST color="#9b59b6">Change Order Log (§3.3 / §3.4)</ST>
-        <div style={{marginBottom:12,fontSize:10,color:"#9b59b6",padding:"8px 12px",background:"#0f0a1a",borderRadius:4,borderLeft:"3px solid #9b59b6",fontFamily:"monospace"}}>
+        <div style={{marginBottom:12,fontSize:10,color:"#9b59b6",padding:"8px 12px",background:"rgba(155,89,182,0.08)",borderRadius:4,borderLeft:"3px solid #9b59b6",fontFamily:"monospace"}}>
           Per CA B&P 7159: verbal changes are still billable. Document ALL changes here before work begins.
         </div>
         {ctr.changeOrders.length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No change orders logged.</div>}
         {ctr.changeOrders.map(co=>(
-          <div key={co.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"12px",marginBottom:8}}>
+          <div key={co.id} style={{background:"var(--bg-secondary)",border:"1px solid #2a2a4a",borderRadius:6,padding:"12px",marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div><div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace"}}>{co.id} · {co.date}</div><div style={{fontSize:11,color:"#ccc",marginTop:3}}>{co.description}</div></div>
+              <div><div style={{fontSize:10,color:"#9b59b6",fontFamily:"monospace"}}>{co.id} · {co.date}</div><div style={{fontSize:11,color:"var(--text-body)",marginTop:3}}>{co.description}</div></div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:12,fontWeight:700,color:"#f0a842",fontFamily:"monospace"}}>{co.amount>=0?"+":""}{fmt$(co.amount)}</span><Sb status={co.status}/></div>
             </div>
           </div>
         ))}
-        <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
+        <div style={{background:"var(--bg-page)",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
           <div style={{fontSize:10,color:"#9b59b6",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW CHANGE ORDER</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr 100px",gap:8,alignItems:"end"}}>
             <div><label style={S.label}>Date</label><input type="date" style={S.input} value={newCO.date ? String(newCO.date).substring(0,10) : ''} onChange={e=>setNewCO({...newCO,date:fixDateYear(e.target.value)})}/></div>
@@ -588,12 +599,12 @@ ${pdfTxt.slice(0,8000)}`}]});
       {/* ADDENDUMS */}
       {ctab==="addendums"&&<div>
         <ST color="#d4ac0d">Addendums</ST>
-        <div style={{fontSize:10,color:"#888",marginBottom:14,padding:"8px 12px",background:"#0f0d00",borderRadius:4,borderLeft:"3px solid #d4ac0d",fontFamily:"monospace"}}>
+        <div style={{fontSize:10,color:"#888",marginBottom:14,padding:"8px 12px",background:"rgba(212,172,13,0.08)",borderRadius:4,borderLeft:"3px solid #d4ac0d",fontFamily:"monospace"}}>
           Addendums modify the original contract scope or value. Only Signed or Approved addendums are included in the Contract Total.
         </div>
         {(ctr.addendums||[]).length===0&&<div style={{color:"#444",fontSize:11,marginBottom:16}}>No addendums yet.</div>}
         {(ctr.addendums||[]).map(a=>(
-          <div key={a.id} style={{background:"#0d0d1a",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginBottom:10}}>
+          <div key={a.id} style={{background:"var(--bg-secondary)",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
               <div style={{flex:1,marginRight:12}}>
                 <input value={a.title} onChange={e=>updateAddendum(a.id,'title',e.target.value)} style={{...S.input,fontSize:12,fontWeight:700,marginBottom:6}} placeholder="Addendum title..."/>
@@ -611,7 +622,7 @@ ${pdfTxt.slice(0,8000)}`}]});
             </div>
           </div>
         ))}
-        <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
+        <div style={{background:"var(--bg-page)",border:"1px solid #2a2a4a",borderRadius:6,padding:"14px",marginTop:8}}>
           <div style={{fontSize:10,color:"#d4ac0d",letterSpacing:"1px",fontFamily:"monospace",marginBottom:10}}>+ NEW ADDENDUM</div>
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
             <div><label style={S.label}>Title</label><input style={S.input} value={newAdd.title} onChange={e=>setNewAdd({...newAdd,title:e.target.value})} placeholder="Addendum #1 — ..."/></div>
@@ -627,7 +638,7 @@ ${pdfTxt.slice(0,8000)}`}]});
       {ctab==="ai analysis"&&<div>
         <ST>AI Contract Analysis</ST>
         {!ai?(
-          <div style={{background:"#0a0a15",border:"1px solid #2a2a4a",borderRadius:8,padding:"20px"}}>
+          <div style={{background:"var(--bg-page)",border:"1px solid #2a2a4a",borderRadius:8,padding:"20px"}}>
             <div style={{fontSize:11,color:"#888",marginBottom:12,lineHeight:1.6}}>Paste the contract text below. The AI will extract key obligations, risk flags, scope summary, payment breakdown, and action items tailored to TruPlans' role as the design firm.</div>
             <textarea style={{...S.input,height:140,resize:"vertical",marginBottom:12,fontSize:11}} placeholder="Paste contract text here..." value={pdfTxt} onChange={e=>setPdfTxt(e.target.value)}/>
             <button style={{...S.btn,opacity:analyzing?0.6:1}} onClick={analyze} disabled={analyzing}>{analyzing?"⏳ Analyzing...":"🤖 Analyze Contract"}</button>
@@ -639,30 +650,30 @@ ${pdfTxt.slice(0,8000)}`}]});
               <button style={{...S.ghost,fontSize:10}} onClick={clearAI}>Re-analyze</button>
             </div>
             {ai.error?<div style={{color:"#e74c3c",fontSize:11}}>{ai.error}</div>:<>
-              <div style={{background:"#0d0d1a",borderRadius:6,padding:"14px",marginBottom:12,borderLeft:"3px solid #e94560"}}>
+              <div style={{background:"var(--bg-secondary)",borderRadius:6,padding:"14px",marginBottom:12,borderLeft:"3px solid #e94560"}}>
                 <div style={{fontSize:10,color:"#e94560",fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>PROJECT SUMMARY</div>
-                <div style={{fontSize:11,color:"#ccc",lineHeight:1.6}}>{ai.summary}</div>
+                <div style={{fontSize:11,color:"var(--text-body)",lineHeight:1.6}}>{ai.summary}</div>
               </div>
               {ai.riskFlags?.length>0&&<div style={{marginBottom:12}}>
                 <div style={{fontSize:10,color:"#e74c3c",fontFamily:"monospace",letterSpacing:"1px",marginBottom:8}}>RISK FLAGS</div>
                 {ai.riskFlags.map((r,i)=>(
                   <div key={i} style={{display:"flex",gap:10,padding:"8px 12px",borderRadius:4,marginBottom:5,background:r.level==="HIGH"?"#200a0a":r.level==="MEDIUM"?"#1a1000":"#0a0f1a",borderLeft:`3px solid ${r.level==="HIGH"?"#e74c3c":r.level==="MEDIUM"?"#f39c12":"#3498db"}`}}>
                     <span style={{fontSize:9,fontWeight:700,color:r.level==="HIGH"?"#e74c3c":r.level==="MEDIUM"?"#f39c12":"#3498db",minWidth:52,fontFamily:"monospace",marginTop:1}}>{r.level}</span>
-                    <span style={{fontSize:11,color:"#ccc",lineHeight:1.5}}>{r.text}</span>
+                    <span style={{fontSize:11,color:"var(--text-body)",lineHeight:1.5}}>{r.text}</span>
                   </div>
                 ))}
               </div>}
               {ai.actionItems?.length>0&&<div style={{marginBottom:12}}>
                 <div style={{fontSize:10,color:"#27ae60",fontFamily:"monospace",letterSpacing:"1px",marginBottom:8}}>ACTION ITEMS</div>
                 {ai.actionItems.map((item,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",borderRadius:4,marginBottom:4,background:"#0d0d1a"}}>
+                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"7px 10px",borderRadius:4,marginBottom:4,background:"var(--bg-secondary)"}}>
                     <div style={{width:16,height:16,borderRadius:"50%",border:`1.5px solid ${item.done?"#27ae60":"#333"}`,background:item.done?"#27ae6033":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,marginTop:1}}>{item.done&&"✓"}</div>
                     <span style={{fontSize:11,color:item.done?"#52d68a":"#ccc",lineHeight:1.5,textDecoration:item.done?"line-through":"none"}}>{item.text}</span>
                   </div>
                 ))}
               </div>}
               {[["Scope Summary",ai.scopeSummary,"#27ae60"],["TruPlans Obligations",ai.obligations,"#3498db"],["Payment Summary",ai.paymentSummary,"#f0a842"]].map(([title,content,color])=>content&&(
-                <div key={title} style={{background:"#0d0d1a",borderRadius:6,padding:"12px",marginBottom:10,borderLeft:`3px solid ${color}`}}>
+                <div key={title} style={{background:"var(--bg-secondary)",borderRadius:6,padding:"12px",marginBottom:10,borderLeft:`3px solid ${color}`}}>
                   <div style={{fontSize:10,color,fontFamily:"monospace",letterSpacing:"1px",marginBottom:6}}>{title.toUpperCase()}</div>
                   <div style={{fontSize:11,color:"#bbb",lineHeight:1.7,whiteSpace:"pre-line"}}>{content}</div>
                 </div>
@@ -680,7 +691,7 @@ ${pdfTxt.slice(0,8000)}`}]});
             ?<div style={{fontSize:9,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace",fontWeight:700}}>CONTRACT</div>
             :<div>
               <div style={{fontSize:10,color:"#e94560",letterSpacing:"2px",fontFamily:"monospace"}}>CONTRACT MODULE</div>
-              <div style={{fontSize:18,fontWeight:700,color:"#f0f0f0",marginTop:2}}>{project.name}</div>
+              <div style={{fontSize:18,fontWeight:700,color:"var(--text-bright)",marginTop:2}}>{project.name}</div>
               <div style={{fontSize:11,color:"#888"}}>{project.client} · {project.city}</div>
             </div>}
           <div style={{display:"flex",gap:8}}>
@@ -696,13 +707,20 @@ ${pdfTxt.slice(0,8000)}`}]});
           </div>
         ):(
           <>
-            {ctrs.length>1&&<div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>{ctrs.map((c,i)=><button key={c.id} onClick={()=>setCi(i)} style={{...S.ghost,...(ci===i?{background:"#e94560",color:"#fff"}:{}),fontSize:10}}>{c.id} — {c.type}</button>)}</div>}
+            <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+              {ctrs.map((c,i)=>(
+                <div key={c.id} style={{display:"flex",alignItems:"center"}}>
+                  <button onClick={()=>setCi(i)} style={{...S.ghost,...(ci===i?{background:"#e94560",color:"#fff",borderColor:"#e94560"}:{}),fontSize:10,borderRadius:"4px 0 0 4px",borderRight:"none",paddingRight:8}}>{c.id} — {c.type}</button>
+                  <button onClick={e=>deleteContract(i,e)} title="Remove contract" style={{...S.ghost,...(ci===i?{borderColor:"#e94560",color:"#e94560"}:{color:"#666"}),fontSize:10,padding:"4px 7px",borderRadius:"0 4px 4px 0"}}>✕</button>
+                </div>
+              ))}
+            </div>
 
             {ctr&&<>
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}}>
-                {[["Contract Total",fmt$(effectiveTotal),"#f0f0f0"],["Paid",fmt$(paid),"#52d68a"],["Outstanding",fmt$(due),due>0?"#f0a842":"#52d68a"],["Est. Start",ctr.estStart||"TBD","#ccc"],["Completion",ctr.estCompletion||"TBD","#ccc"]].map(([l,v,c])=>(
-                  <div key={l} style={{background:"#0d0d1a",borderRadius:6,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,color:"#555",letterSpacing:"1px",textTransform:"uppercase",fontFamily:"monospace"}}>{l}</div>
+                {[["Contract Total",fmt$(effectiveTotal),"var(--text-bright)"],["Paid",fmt$(paid),"#52d68a"],["Outstanding",fmt$(due),due>0?"#f0a842":"#52d68a"],["Est. Start",ctr.estStart||"TBD","var(--text-body)"],["Completion",ctr.estCompletion||"TBD","var(--text-body)"]].map(([l,v,c])=>(
+                  <div key={l} style={{background:"var(--bg-secondary)",borderRadius:6,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,color:"var(--text-muted)",letterSpacing:"1px",textTransform:"uppercase",fontFamily:"monospace"}}>{l}</div>
                     <div style={{fontSize:13,fontWeight:700,color:c,marginTop:3,fontFamily:"monospace"}}>{v}</div>
                     {l==="Contract Total"&&addendumTotal>0&&<div style={{fontSize:8,color:"#27ae60",fontFamily:"monospace",marginTop:2}}>{`+${fmt$(addendumTotal)} addendums`}</div>}
                   </div>
@@ -710,7 +728,7 @@ ${pdfTxt.slice(0,8000)}`}]});
               </div>
               <div style={{marginBottom:16}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10,color:"#888",fontFamily:"monospace"}}><span>Payment progress</span><span style={{color:"#52d68a"}}>{pctP}%</span></div><Pb pct={pctP} color="#27ae60"/></div>
 
-              <div style={{display:"flex",gap:0,borderBottom:"1px solid #1e1e3a",marginBottom:18,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--border-primary)",marginBottom:18,flexWrap:"wrap"}}>
                 {CTABS.map(t=><button key={t} onClick={()=>{setCtab(t);if(inline)setInlineOpen(true);}} style={{padding:"8px 12px",cursor:"pointer",fontSize:9,letterSpacing:"1px",fontWeight:ctab===t?700:400,color:ctab===t?"#e94560":"#555",background:"none",border:"none",borderBottom:ctab===t?"2px solid #e94560":"2px solid transparent",fontFamily:"monospace",textTransform:"uppercase"}}>{t}</button>)}
               </div>
 
@@ -725,9 +743,9 @@ ${pdfTxt.slice(0,8000)}`}]});
       {moduleBody}
       {inlineOpen&&(
         <div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-          <div style={{pointerEvents:"auto",background:"#fff",borderRadius:12,boxShadow:"0 8px 48px rgba(0,0,0,0.22)",border:"1px solid #dde1e7",width:860,maxWidth:"92vw",maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-            <div style={{background:"#f4f6f8",borderBottom:"1px solid #dde1e7",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#1a1a2e",fontFamily:"monospace",letterSpacing:"1px",textTransform:"capitalize"}}>{ctab}</div>
+          <div style={{pointerEvents:"auto",background:"var(--bg-card)",borderRadius:12,boxShadow:"0 8px 48px rgba(0,0,0,0.22)",border:"1px solid var(--border-primary)",width:860,maxWidth:"92vw",maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{background:"var(--bg-secondary)",borderBottom:"1px solid var(--border-primary)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--text-bright)",fontFamily:"monospace",letterSpacing:"1px",textTransform:"capitalize"}}>{ctab}</div>
               <button onClick={()=>setInlineOpen(false)} style={{background:"none",border:"1px solid #ccc",borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14,color:"#555",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
             </div>
             <div style={{padding:24,overflowY:"auto",flex:1}}>

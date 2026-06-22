@@ -18,7 +18,7 @@ function fixDateYear(val) {
   return val;
 }
 
-const ANTHROPIC_API_KEY = "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";
+const ANTHROPIC_API_KEY = null;
 
 const CONTRACT_TEMPLATE = {
   designScope: [
@@ -612,7 +612,7 @@ function parseNotes(notes){
   const phone=notes.match(/\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0];
   const email=notes.match(/[\w.+-]+@[\w-]+\.[\w.]+/)?.[0];
   const docusign=notes.match(/[Dd]ocu[Ss]ign\s*:?\s*([A-Z0-9-]{6,})/)?.[1];
-  const address=notes.match(/\d+\s+[\w\s]+,\s*[\w\s]+,?\s*CA\s*\d{5}/)?.[0]?.trim();
+  const address=(notes.match(/\d+\s[\w\s.]+,\s*[\w\s]+,?\s*(?:CA\s*)?\d{5}/)?.[0]||'').trim()||undefined;
   return {phone,email,docusign,address};
 }
 
