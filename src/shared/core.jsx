@@ -239,7 +239,7 @@ function makeProjectPhases(p){
   const cur=phaseMinor(curId);
   return PHASES_WILLIS_WORKFLOW.map(pw=>{const m=phaseMinor(pw.id);return{id:pw.id,status:m<cur?"done":m===cur?"in_progress":"not_started",dateCompleted:null,initials:"",notes:""};});
 }
-function addDays(dateStr,n){if(!dateStr)return null;const d=new Date(dateStr);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function addDays(dateStr,n){if(!dateStr)return null;const d=new Date(dateStr);if(isNaN(d.getTime()))return null;d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 const SLA_DAYS=56;
 const EXTERNAL_IDS=new Set(['5.21','5.22','5.23']);
 const WEEK_BUCKETS=[
@@ -516,6 +516,7 @@ const WORKFLOW_MILESTONES = [
 
 function generateWorkflow(startDate, designer) {
   let cur = new Date(startDate || new Date());
+  if(isNaN(cur.getTime())) cur = new Date();
   return WORKFLOW_MILESTONES.map(m => {
     const s = cur.toISOString().slice(0,10);
     cur = new Date(cur.getTime() + m.days * 86400000);

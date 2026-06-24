@@ -313,7 +313,7 @@ function matchProject(from, subject = '') {
 }
 
 
-function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '', userEmail = '', onEmailTemplate }) {
+function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initialThread = null, onInitialThreadConsumed, searchFilter = '', userEmail = '', onEmailTemplate, sourceProject = null, onBackToProject }) {
   const [connected, setConnected] = useState(null);
   const [gmailEmail, setGmailEmail] = useState('');
   const [loading, setLoading] = useState(true);
@@ -611,8 +611,15 @@ function Inbox({ projects = [], onOpenProject, threads = [], onSetThreads, initi
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
-          INBOX{gmailEmail ? ` · ${gmailEmail}` : ''} · {sfq ? `${displayedThreads.length} of ${threads.length}` : `${threads.length} threads`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {sourceProject && onBackToProject && (
+            <button onClick={onBackToProject} style={{ padding: '4px 12px', background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontFamily: 'monospace', fontWeight: 700 }}>
+              ← {sourceProject.name}
+            </button>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', letterSpacing: '1px' }}>
+            INBOX{gmailEmail ? ` · ${gmailEmail}` : ''} · {sfq ? `${displayedThreads.length} of ${threads.length}` : `${threads.length} threads`}
+          </div>
         </div>
         <button onClick={checkStatus} style={{ padding: '5px 14px', background: 'none', border: '1px solid var(--border-secondary)', color: 'var(--text-muted)', borderRadius: 4, cursor: 'pointer', fontSize: 10, fontFamily: 'monospace' }}>↺ Refresh</button>
       </div>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TruPlans Dashboard — v1.3 Release Notes</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #212121; background: #fff; font-size: 13px; line-height: 1.6; }
+
+  .cover { background: #0d0d1a; color: #fff; padding: 60px 48px 48px; }
+  .cover .label { font-size: 10px; letter-spacing: 3px; color: #e94560; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+  .cover h1 { font-size: 36px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .cover .sub { font-size: 14px; color: #888; margin-bottom: 32px; }
+  .cover .meta { display: flex; gap: 40px; }
+  .cover .meta-item .key { font-size: 9px; color: #555; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .cover .meta-item .val { font-size: 16px; font-weight: 700; color: #e94560; font-family: monospace; }
+
+  .content { padding: 40px 48px; }
+
+  h2 { font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #e94560; font-weight: 700; margin: 36px 0 16px; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; }
+  h2:first-child { margin-top: 0; }
+
+  .feature { margin-bottom: 20px; padding: 16px 18px; border: 1px solid #f0f0f0; border-radius: 6px; border-left: 3px solid #e94560; }
+  .feature h3 { font-size: 13px; font-weight: 700; color: #0d0d1a; margin-bottom: 4px; }
+  .feature p { font-size: 12px; color: #555; line-height: 1.6; }
+  .feature .tag { display: inline-block; font-size: 9px; background: #e9456015; color: #e94560; border: 1px solid #e9456033; border-radius: 99px; padding: 1px 8px; margin-bottom: 8px; letter-spacing: 1px; font-weight: 700; text-transform: uppercase; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .tip { background: #f8f9ff; border: 1px solid #e0e4ff; border-radius: 6px; padding: 14px 16px; margin: 20px 0; }
+  .tip .tip-label { font-size: 9px; font-weight: 700; color: #3b5bdb; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .tip p { font-size: 12px; color: #444; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+  th { background: #f5f5f5; padding: 8px 12px; text-align: left; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e0e0e0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; color: #333; }
+  tr:last-child td { border-bottom: none; }
+  .check { color: #2e7d32; font-weight: 700; }
+
+  .footer { background: #f8f8f8; padding: 24px 48px; margin-top: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e0e0e0; }
+  .footer .company { font-size: 11px; color: #888; }
+  .footer .version { font-size: 11px; color: #e94560; font-weight: 700; font-family: monospace; }
+
+  @media print {
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .feature { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="label">Release Notes</div>
+  <h1>TruPlans Dashboard</h1>
+  <div class="sub">Internal project management platform — Marusic Precision Design LLC</div>
+  <div class="meta">
+    <div class="meta-item"><div class="key">Version</div><div class="val">v1.3.2</div></div>
+    <div class="meta-item"><div class="key">Released</div><div class="val">Jun 22, 2026</div></div>
+    <div class="meta-item"><div class="key">Platform</div><div class="val">Windows</div></div>
+    <div class="meta-item"><div class="key">Update</div><div class="val">Auto</div></div>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="tip">
+    <div class="tip-label">Auto-Update</div>
+    <p>v1.3.2 delivers automatically — just open the app and wait 2-3 minutes. You'll see an "Update Ready" popup. Click <strong>Restart Now</strong>. No manual install needed after this.</p>
+  </div>
+
+  <h2>What's New in v1.3</h2>
+
+  <div class="grid">
+
+    <div class="feature">
+      <div class="tag">New Tab</div>
+      <h3>🤖 AI Assistant</h3>
+      <p>A new <strong>AI tab</strong> in the navigation bar. Type any question about zoning, workflow, or projects and get an instant answer. San Diego zoning (all 33 residential zones) is fully loaded into the knowledge base.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">New Feature</div>
+      <h3>🗺 City Resource Buttons</h3>
+      <p>Open any project — if it's in San Diego, Irvine, Carlsbad, San Clemente, Mission Viejo, or Rancho Santa Margarita, two buttons appear in the header: <strong>Zoning Map</strong> and <strong>Municipal Code</strong>. One click opens the right city resource.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">Improvement</div>
+      <h3>📍 Address in Project Header</h3>
+      <p>If a project has an address in its notes, it now shows automatically in the Project Detail header — no digging through notes needed.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">Improvement</div>
+      <h3>📅 Gantt Year Switcher</h3>
+      <p>The Gantt tab now has <strong>← 2025 · 2026 · 2027 → · TODAY</strong> buttons. Switch between years to see past or future project timelines. Works in both light and dark mode.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">Improvement</div>
+      <h3>✉️ Use Template from Inbox</h3>
+      <p>When reading an email in the Inbox tab that matches a project, a green <strong>"✉ Use Template"</strong> button appears. Click it to open the email template modal pre-loaded with that project's data — without leaving the inbox.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">Improvement</div>
+      <h3>📋 Contracts Button</h3>
+      <p>The Project Detail header now has a dedicated <strong>Contracts</strong> button alongside Delete, Workflow, Assign Team, and Close — for quicker access to contract management.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">Fix</div>
+      <h3>🔒 API Key Security</h3>
+      <p>The Anthropic API key is now stored securely in Supabase and never in the source code. Contract Analyser is fully operational with the new key.</p>
+    </div>
+
+    <div class="feature">
+      <div class="tag">Fix</div>
+      <h3>🔄 Auto-Updater Activated</h3>
+      <p>Starting from v1.3.0, all future updates install automatically in the background. The team never needs to manually download or install an update again.</p>
+    </div>
+
+  </div>
+
+  <h2>AI Assistant — Zoning Knowledge Base</h2>
+  <p style="margin-bottom:14px;color:#555;">The AI Assistant has verified zoning data for the following cities. Ask it anything about setbacks, height limits, FAR, or density.</p>
+
+  <table>
+    <thead>
+      <tr><th>City</th><th>Zones Available</th><th>Example Question</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>San Diego</strong></td><td class="check">✓ All 33 zones (RS, RX, RT, RM)</td><td style="color:#888;font-style:italic">"What are the setbacks for RS-1-6 in San Diego?"</td></tr>
+      <tr><td><strong>Irvine</strong></td><td class="check">✓ 2.2 Low Density Residential</td><td style="color:#888;font-style:italic">"What is the height limit for Irvine 2.2?"</td></tr>
+      <tr><td>Carlsbad</td><td style="color:#bbb;">Adding soon</td><td></td></tr>
+      <tr><td>Mission Viejo</td><td style="color:#bbb;">Adding soon</td><td></td></tr>
+      <tr><td>San Clemente</td><td style="color:#bbb;">Adding soon</td><td></td></tr>
+      <tr><td>Rancho Santa Margarita</td><td style="color:#bbb;">Adding soon</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h2>City Resource Buttons — Quick Reference</h2>
+  <table>
+    <thead>
+      <tr><th>City</th><th>Zoning Map</th><th>Municipal Code</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>San Diego</td><td class="check">✓ ArcGIS Parcel Viewer</td><td class="check">✓ Chapter 13</td></tr>
+      <tr><td>Irvine</td><td class="check">✓ City Planning Page</td><td class="check">✓ Municode Zoning</td></tr>
+      <tr><td>Carlsbad</td><td class="check">✓ City Planning Page</td><td class="check">✓ Municode Title 21</td></tr>
+      <tr><td>San Clemente</td><td class="check">✓ City Planning Page</td><td class="check">✓ Municode Title 17</td></tr>
+      <tr><td>Mission Viejo</td><td class="check">✓ City Planning Page</td><td class="check">✓ Municode Title 9</td></tr>
+      <tr><td>Rancho Santa Margarita</td><td class="check">✓ City Planning Page</td><td class="check">✓ Municode</td></tr>
+    </tbody>
+  </table>
+
+  <h2>How to Use the AI Assistant</h2>
+
+  <div class="grid">
+    <div class="feature">
+      <div class="tag">Step 1</div>
+      <h3>Open the AI tab</h3>
+      <p>Click <strong>AI</strong> in the top navigation bar.</p>
+    </div>
+    <div class="feature">
+      <div class="tag">Step 2</div>
+      <h3>Select a project (optional)</h3>
+      <p>Use the dropdown to attach a project — the AI will include that project's city, phase, and contract info as context.</p>
+    </div>
+    <div class="feature">
+      <div class="tag">Step 3</div>
+      <h3>Ask your question</h3>
+      <p>Type any question and press <strong>Enter</strong>. Use the quick prompts at the bottom for common questions.</p>
+    </div>
+    <div class="feature">
+      <div class="tag">Step 4</div>
+      <h3>Get the zone first</h3>
+      <p>For zoning questions, open the project → click <strong>🗺 Zoning Map</strong> → click the parcel → note the zone code → come back and ask the AI about that zone.</p>
+    </div>
+  </div>
+
+  <h2>Coming Next</h2>
+  <table>
+    <thead>
+      <tr><th>Feature</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>More cities in AI zoning database (Carlsbad, Mission Viejo, etc.)</td><td style="color:#f57f17;">In Progress</td></tr>
+      <tr><td>Designer role — see only own projects</td><td style="color:#f57f17;">Planned v2.0</td></tr>
+      <tr><td>Management dashboard — team KPIs</td><td style="color:#f57f17;">Planned v2.0</td></tr>
+      <tr><td>Activity log — who changed what</td><td style="color:#f57f17;">Planned v2.0</td></tr>
+      <tr><td>Password login (email + password)</td><td style="color:#f57f17;">Planned v2.0</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+<div class="footer">
+  <div class="company">TruPlans Dashboard · Marusic Precision Design LLC · planning@truplans.com</div>
+  <div class="version">v1.3.2 · Jun 22, 2026</div>
+</div>
+
+</body>
+</html>

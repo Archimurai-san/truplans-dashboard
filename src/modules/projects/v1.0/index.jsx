@@ -99,7 +99,7 @@ function CityPanel({project,initData,onClose,onUpdate}){
   const updRound=(i,field,value,txt=false)=>{const rounds=data.rounds.map((r,ri)=>ri===i?{...r,[field]:value}:r);const next={...data,rounds};if(txt){setData(next);dbt(`cp-${project.id}`,()=>onUpdate(project.id,dr.current));}else commit(next);};
   const [confirmRemove,setConfirmRemove]=useState(null);
   const removeRound=i=>{const rounds=(data.rounds||[]).filter((_,ri)=>ri!==i).map((r,ri)=>({...r,round:ri+1}));commit({...data,rounds});setConfirmRemove(null);};
-  const handleApproval=date=>{const d=date?new Date(date):null;const exp=d?(()=>{const x=new Date(d);x.setFullYear(x.getFullYear()+1);return x.toISOString().slice(0,10);})():'';updMany({permitApprovalDate:date,...(!data.permitExpiryDate&&exp?{permitExpiryDate:exp}:{})});};
+  const handleApproval=date=>{const d=date?new Date(date):null;const exp=(d&&!isNaN(d.getTime()))?(()=>{const x=new Date(d);x.setFullYear(x.getFullYear()+1);return x.toISOString().slice(0,10);})():'';updMany({permitApprovalDate:date,...(!data.permitExpiryDate&&exp?{permitExpiryDate:exp}:{})});};
   const badge=CITY_STATUS_BADGE[data.planCheckStatus]||CITY_STATUS_BADGE['Not Submitted'];
   const Lbl=({t})=><div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t}</div>;
   const Fld=({label,children})=><div style={{marginBottom:12}}><Lbl t={label}/>{children}</div>;

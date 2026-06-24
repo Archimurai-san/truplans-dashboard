@@ -77,6 +77,7 @@ Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if no
 
 function AnalyseModal({project,onClose,onSave}){
   const [phase,setPhase]=useState('pick');
+  const [addAsNew,setAddAsNew]=useState(false);
   const [filePath,setFilePath]=useState('');
   const [filename,setFilename]=useState('');
   const [errMsg,setErrMsg]=useState('');
@@ -169,7 +170,7 @@ function AnalyseModal({project,onClose,onSave}){
       demoWork:e.demoWork||[],
       contractPath:filename,
       ...(cityFromAddr&&!project.city?{city:cityFromAddr}:{}),
-      contracts:project.contracts&&project.contracts.length>0?project.contracts.map((c,i)=>i===0?{...CONTRACT_TEMPLATE,...e,id:c.id}:c):[{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
+      contracts:project.contracts&&project.contracts.length>0&&!addAsNew?project.contracts.map((c,i)=>i===0?{...CONTRACT_TEMPLATE,...e,id:c.id}:c):[...(addAsNew&&project.contracts.length>0?project.contracts:[]),{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
     },milestones);
     setPhase('saved');
     setTimeout(()=>onClose(),2200);
@@ -286,9 +287,20 @@ function AnalyseModal({project,onClose,onSave}){
                 {!(edited.paymentMilestones||[]).length&&<div style={{fontSize:11,color:'var(--text-faint)',padding:'20px 0',textAlign:'center'}}>No payment milestones extracted</div>}
               </div>
             </div>
-            <div style={{display:'flex',gap:8,justifyContent:'flex-end',borderTop:'1px solid var(--border-primary)',paddingTop:14}}>
-              <button style={S.ghost} onClick={onClose}>Cancel</button>
-              <button style={S.btn} onClick={save}>💾 Save to Project</button>
+            <div style={{borderTop:'1px solid var(--border-primary)',paddingTop:14}}>
+              {project.contracts&&project.contracts.length>0&&(
+                <div style={{marginBottom:12,padding:'10px 14px',background:'var(--bg-secondary)',borderRadius:6,border:'1px solid var(--border-primary)'}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'var(--text-bright)',marginBottom:8}}>This project already has a contract. What would you like to do?</div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>setAddAsNew(false)} style={{flex:1,padding:'7px',fontSize:11,fontFamily:'monospace',borderRadius:4,border:`2px solid ${!addAsNew?'var(--accent)':'var(--border-secondary)'}`,background:!addAsNew?'var(--accent)':'none',color:!addAsNew?'#fff':'var(--text-muted)',cursor:'pointer'}}>🔄 Update existing contract</button>
+                    <button onClick={()=>setAddAsNew(true)} style={{flex:1,padding:'7px',fontSize:11,fontFamily:'monospace',borderRadius:4,border:`2px solid ${addAsNew?'var(--accent)':'var(--border-secondary)'}`,background:addAsNew?'var(--accent)':'none',color:addAsNew?'#fff':'var(--text-muted)',cursor:'pointer'}}>➕ Add as new contract</button>
+                  </div>
+                </div>
+              )}
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                <button style={S.ghost} onClick={onClose}>Cancel</button>
+                <button style={S.btn} onClick={save}>💾 Save to Project</button>
+              </div>
             </div>
           </div>
         )}
@@ -710,7 +722,7 @@ ${pdfTxt.slice(0,8000)}`}]};
             <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
               {ctrs.map((c,i)=>(
                 <div key={c.id} style={{display:"flex",alignItems:"center"}}>
-                  <button onClick={()=>setCi(i)} style={{...S.ghost,...(ci===i?{background:"#e94560",color:"#fff",borderColor:"#e94560"}:{}),fontSize:10,borderRadius:"4px 0 0 4px",borderRight:"none",paddingRight:8}}>{c.id} — {c.type}</button>
+                  <button onClick={()=>setCi(i)} style={{...S.ghost,...(ci===i?{background:"#e94560",color:"#fff",borderColor:"#e94560"}:{}),fontSize:10,borderRadius:"4px 0 0 4px",borderRight:"none",paddingRight:8}}>{c.contractFormat==='CALOFT'?'CALOFT Construction':c.contractFormat==='TRUADDITIONS'?'TruAdditions':c.type||`Contract ${i+1}`}</button>
                   <button onClick={e=>deleteContract(i,e)} title="Remove contract" style={{...S.ghost,...(ci===i?{borderColor:"#e94560",color:"#e94560"}:{color:"#666"}),fontSize:10,padding:"4px 7px",borderRadius:"0 4px 4px 0"}}>✕</button>
                 </div>
               ))}

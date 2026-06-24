@@ -346,6 +346,7 @@ export default function App(){
   const [detailProjectId,setDetailProjectId]=useState(null);
   const [gmailThreads,setGmailThreads]=useState([]);
   const [pendingThread,setPendingThread]=useState(null);
+  const [inboxSourceProjectId,setInboxSourceProjectId]=useState(null);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));};
   const updateProjectName=(id,name)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
@@ -548,15 +549,15 @@ export default function App(){
     if(fSLA!=="All"&&getSLAStatus(p).zone!==fSLA) return false;
     return true;
   }),[projects,fD,fS,fT,fSLA]);
-  const active=projects.filter(p=>p.status==="In Progress").length;
-  const done=projects.filter(p=>p.status==="Completed").length;
-  const avgP=Math.round(projects.filter(p=>p.status==="In Progress").reduce((a,p)=>a+p.pct,0)/Math.max(active,1));
-  const totC=projects.reduce((a,p)=>a+p.contract,0);
-  const totI=projects.reduce((a,p)=>a+p.invoiced,0);
-  const totCollected=useMemo(()=>projects.reduce((a,p)=>a+getProjectMilestones(p,paymentData).filter(m=>m.status==='Collected').reduce((s,m)=>s+m.amount,0),0),[projects,paymentData]);
-  const totInvoiced=useMemo(()=>projects.reduce((a,p)=>a+getProjectMilestones(p,paymentData).filter(m=>m.status==='Invoiced'||m.status==='Collected').reduce((s,m)=>s+m.amount,0),0),[projects,paymentData]);
-  const slaRed=projects.filter(p=>p.status==="In Progress"&&getSLAStatus(p).zone==='red').length;
-  const slaAmber=projects.filter(p=>p.status==="In Progress"&&getSLAStatus(p).zone==='amber').length;
+  const active=visibleProjects.filter(p=>p.status==="In Progress").length;
+  const done=visibleProjects.filter(p=>p.status==="Completed").length;
+  const avgP=Math.round(visibleProjects.filter(p=>p.status==="In Progress").reduce((a,p)=>a+p.pct,0)/Math.max(active,1));
+  const totC=visibleProjects.reduce((a,p)=>a+p.contract,0);
+  const totI=visibleProjects.reduce((a,p)=>a+p.invoiced,0);
+  const totCollected=useMemo(()=>visibleProjects.reduce((a,p)=>a+getProjectMilestones(p,paymentData).filter(m=>m.status==='Collected').reduce((s,m)=>s+m.amount,0),0),[visibleProjects,paymentData]);
+  const totInvoiced=useMemo(()=>visibleProjects.reduce((a,p)=>a+getProjectMilestones(p,paymentData).filter(m=>m.status==='Invoiced'||m.status==='Collected').reduce((s,m)=>s+m.amount,0),0),[visibleProjects,paymentData]);
+  const slaRed=visibleProjects.filter(p=>p.status==="In Progress"&&getSLAStatus(p).zone==='red').length;
+  const slaAmber=visibleProjects.filter(p=>p.status==="In Progress"&&getSLAStatus(p).zone==='amber').length;
 
   async function importFromPDF(file){
     setImporting(true);setImportError("");setImportStep("Reading PDF...");
@@ -630,22 +631,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
         <div onClick={()=>{setFSLA('red');setTab('projects');}} style={{...S.metric,borderTopWidth:"var(--kpi-top-w)",borderTopStyle:"solid",borderTopColor:"var(--sla-red-text)",cursor:"pointer"}} title="Click to filter projects"><div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace",marginBottom:8}}>Red Zone</div><div style={{fontSize:22,fontWeight:700,color:"var(--sla-red-text)",fontFamily:"monospace"}}>{slaRed}</div></div>
         <div onClick={()=>{setFSLA('amber');setTab('projects');}} style={{...S.metric,borderTopWidth:"var(--kpi-top-w)",borderTopStyle:"solid",borderTopColor:"var(--status-hold-text)",cursor:"pointer"}} title="Click to filter projects"><div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace",marginBottom:8}}>Amber</div><div style={{fontSize:22,fontWeight:700,color:"var(--status-hold-text)",fontFamily:"monospace"}}>{slaAmber}</div></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        <div style={S.card}><ST>Designer Workload</ST>{Object.keys(teamMembers).map(d=>{const dp=projects.filter(p=>p.designer===d&&p.status==="In Progress");return<div key={d} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><MemberAv name={d}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"var(--text-body)"}}>{d}</span><span style={{fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}>{dp.length} active</span></div><Pb pct={dp.length/5*100} color={teamMembers[d]}/></div></div>;})}</div>
-        <div style={{...S.card,display:"flex",flexDirection:"column",minHeight:340}}><ST>TruPlans Expansion Map</ST><Suspense fallback={<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><LAMap projects={projects}/></Suspense></div>
-      </div>
-      <div style={{...S.card,marginBottom:24}}><ST>TruPlans U.S. Marketing Project Map</ST><Suspense fallback={<div style={{height:320,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><SoCalOverview projects={projects}/></Suspense></div>
-      <div style={S.card}><ST>Open Tasks by Priority</ST>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-          {[["High Priority","var(--sla-red-text)","Tasks overdue / at risk","High"],["Medium Priority","var(--status-hold-text)","Tasks due soon","Medium"],["Low Priority","var(--status-done-text)","Tasks on track","Low"]].map(([label,color,sub,pri])=>(
-            <div key={pri} onClick={()=>{setFTP(pri);setTab("tasks");}} style={{...S.metric,cursor:"pointer",borderTopWidth:"var(--kpi-top-w)",borderTopStyle:"solid",borderTopColor:color,flex:"1 1 120px"}}>
-              <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace",marginBottom:6}}>{label}</div>
-              <div style={{fontSize:28,fontWeight:700,color,fontFamily:"monospace",lineHeight:1}}>{generatedTasks.filter(t=>t.priority===pri).length}</div>
-              <div style={{fontSize:10,color:"var(--text-muted)",marginTop:4}}>{sub}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {(()=>{const fin=getFinancialSummary(visibleProjects,paymentData);return(<div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:20}}>{[['This Month Contracted','var(--kpi-3)',fmt$(fin.thisMoC)],['This Month Collected','var(--kpi-2)',fmt$(fin.thisMoX)],['YTD Contracted','var(--kpi-0)',fmt$(fin.ytdC)],['YTD Collected','var(--kpi-2)',fmt$(fin.ytdX)],['Collection Rate',fin.rate>=70?'var(--kpi-2)':fin.rate>=40?'var(--kpi-3)':'var(--kpi-5)',fin.rate+'%']].map(([l,v,c])=>(<div key={l} style={{...S.metric,flex:'1 1 140px',borderTopWidth:'var(--kpi-top-w)',borderTopStyle:'solid',borderTopColor:c}}><div style={{fontSize:9,color:'var(--text-dim)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:8}}>{l}</div><div style={{fontSize:20,fontWeight:700,color:c,fontFamily:'monospace'}}>{v}</div></div>))}</div>);})()}
       {(()=>{
         const isDark=theme==='dark';
         const revData=getRevenueData(projects,paymentData);
@@ -658,7 +644,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
         const fmtK=v=>v>=1000?'$'+Math.round(v/1000)+'k':'$'+v;
         return(
           <>
-            <div style={{marginTop:20,marginBottom:6}}><ST>Revenue Overview</ST></div>
+            <div style={{marginTop:8,marginBottom:6}}><ST>Revenue Overview</ST></div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
               {/* Bar Chart */}
               <div style={S.card}>
@@ -693,27 +679,25 @@ Set included:true/false per contract. Extract real payment milestones with amoun
                 </ResponsiveContainer>
               </div>
             </div>
-            {/* Financial Summary */}
-            <div style={S.card}>
-              <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',fontFamily:'monospace',marginBottom:14,letterSpacing:'1px',textTransform:'uppercase'}}>Financial Summary</div>
-              <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                {[
-                  ['This Month Contracted','var(--kpi-3)',fmt$(fin.thisMoC)],
-                  ['This Month Collected', 'var(--kpi-2)',fmt$(fin.thisMoX)],
-                  ['YTD Contracted',       'var(--kpi-0)',fmt$(fin.ytdC)],
-                  ['YTD Collected',        'var(--kpi-2)',fmt$(fin.ytdX)],
-                  ['Collection Rate',      fin.rate>=70?'var(--kpi-2)':fin.rate>=40?'var(--kpi-3)':'var(--kpi-5)',fin.rate+'%'],
-                ].map(([label,color,value])=>(
-                  <div key={label} style={{...S.metric,flex:'1 1 140px',borderTopWidth:'var(--kpi-top-w)',borderTopStyle:'solid',borderTopColor:color}}>
-                    <div style={{fontSize:9,color:'var(--text-dim)',letterSpacing:'2px',textTransform:'uppercase',fontFamily:'monospace',marginBottom:8}}>{label}</div>
-                    <div style={{fontSize:20,fontWeight:700,color,fontFamily:'monospace'}}>{value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </>
         );
       })()}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16,marginTop:20}}>
+        <div style={S.card}><ST>Designer Workload</ST>{Object.keys(teamMembers).map(d=>{const dp=projects.filter(p=>p.designer===d&&p.status==="In Progress");return<div key={d} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}><MemberAv name={d}/><div style={{flex:1}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"var(--text-body)"}}>{d}</span><span style={{fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}>{dp.length} active</span></div><Pb pct={dp.length/5*100} color={teamMembers[d]}/></div></div>;})}</div>
+        <div style={{...S.card,display:"flex",flexDirection:"column",minHeight:340}}><ST>TruPlans Expansion Map</ST><Suspense fallback={<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><LAMap projects={projects}/></Suspense></div>
+      </div>
+      <div style={{...S.card,marginBottom:24}}><ST>TruPlans U.S. Marketing Project Map</ST><Suspense fallback={<div style={{height:320,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-muted)",fontSize:11,fontFamily:"monospace"}}>Loading map…</div>}><SoCalOverview projects={projects}/></Suspense></div>
+      <div style={S.card}><ST>Open Tasks by Priority</ST>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          {[["High Priority","var(--sla-red-text)","Tasks overdue / at risk","High"],["Medium Priority","var(--status-hold-text)","Tasks due soon","Medium"],["Low Priority","var(--status-done-text)","Tasks on track","Low"]].map(([label,color,sub,pri])=>(
+            <div key={pri} onClick={()=>{setFTP(pri);setTab("tasks");}} style={{...S.metric,cursor:"pointer",borderTopWidth:"var(--kpi-top-w)",borderTopStyle:"solid",borderTopColor:color,flex:"1 1 120px"}}>
+              <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"2px",textTransform:"uppercase",fontFamily:"monospace",marginBottom:6}}>{label}</div>
+              <div style={{fontSize:28,fontWeight:700,color,fontFamily:"monospace",lineHeight:1}}>{generatedTasks.filter(t=>t.priority===pri).length}</div>
+              <div style={{fontSize:10,color:"var(--text-muted)",marginTop:4}}>{sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </>
   );
 
@@ -1293,7 +1277,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             taskInstructions={taskInstructions}
             onEditInstruction={stepId=>{const instr=getTaskInstruction(stepId,detailProject?.city||null);if(instr)setHowToPanel({instr,taskDesc:'',startEdit:true});}}
             threads={gmailThreads}
-            onOpenThread={t=>{setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
+            onOpenThread={t=>{setInboxSourceProjectId(detailProjectId);setDetailProjectId(null);setTab("inbox");setPendingThread(t);}}
           />
         ):(
           <>
@@ -1302,7 +1286,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="gantt"&&<Gantt/>}
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
-            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''} onEmailTemplate={p=>setEmailModal(p)}/>}
+            {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''} onEmailTemplate={p=>setEmailModal(p)} sourceProject={inboxSourceProjectId?projects.find(p=>p.id===inboxSourceProjectId):null} onBackToProject={()=>{goToProject(inboxSourceProjectId);setInboxSourceProjectId(null);}}/>}
             {tab==="ai"&&<AiAssistant projects={projects} activeProjectId={detailProjectId}/>}
           </>
         )}

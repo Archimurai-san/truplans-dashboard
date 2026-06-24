@@ -557,7 +557,7 @@ app.get('/api/gmail/list', async (req, res) => {
   if (!oauth2) return res.status(401).json({ error: 'Not connected' });
   try {
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
-    const listRes = await gmail.users.threads.list({ userId: 'me', maxResults: 500 });
+    const listRes = await gmail.users.threads.list({ userId: 'me', maxResults: 50 });
     const threads = listRes.data.threads || [];
     const detailed = await Promise.all(threads.map(async t => {
       const thread = await gmail.users.threads.get({
@@ -581,7 +581,7 @@ app.get('/api/gmail/list-planning', async (req, res) => {
   oauth2.setCredentials({ refresh_token: gmailRefreshToken });
   try {
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
-    const listRes = await gmail.users.threads.list({ userId: 'me', maxResults: 500 });
+    const listRes = await gmail.users.threads.list({ userId: 'me', maxResults: 50 });
     const threads = listRes.data.threads || [];
     const detailed = await Promise.all(threads.map(async t => {
       const thread = await gmail.users.threads.get({
