@@ -137,19 +137,20 @@ export default function App(){
       return saved;
     }catch{return {};}
   });
-  const savePaymentData=(projectId,ms)=>{
+  const savePaymentData=(projectId,ms,silent=false)=>{
     const u={...paymentData,[projectId]:ms};
     setPaymentData(u);
     try{localStorage.setItem("payment-milestones",JSON.stringify(u));}catch{}
     const inv=ms.filter(m=>m.status==='Invoiced'||m.status==='Collected').reduce((a,m)=>a+(m.amount||0),0);
     saveProjects(prev=>prev.map(p=>String(p.id)===String(projectId)?{...p,invoiced:inv,paymentMilestones:ms}:p));
+    if(!silent){const proj=projects.find(p=>String(p.id)===String(projectId));const collected=ms.filter(m=>m.status==='Collected');if(collected.length>0)logActivity('Payment updated',`$${inv.toLocaleString()} collected`,projectId,proj?.name);}
   };
   const [paymentPanel,setPaymentPanel]=useState(null);
   const [cityData,setCityData]=useState(()=>{try{return JSON.parse(localStorage.getItem("city-submissions")||"{}");}catch{return {};}});
-  const saveCityData=(projectId,d)=>{const u={...cityData,[projectId]:d};setCityData(u);try{localStorage.setItem("city-submissions",JSON.stringify(u));}catch{}triggerSave();};
+  const saveCityData=(projectId,d)=>{const u={...cityData,[projectId]:d};setCityData(u);try{localStorage.setItem("city-submissions",JSON.stringify(u));}catch{}triggerSave();const proj=projects.find(p=>p.id===projectId);if(d.planCheckStatus)logActivity('City status updated',`Plan check: ${d.planCheckStatus}`,projectId,proj?.name);};
   const [cityPanel,setCityPanel]=useState(null);
   const [hoaData,setHoaData]=useState(()=>{try{return JSON.parse(localStorage.getItem("hoa-submissions")||"{}");}catch{return {};}});
-  const saveHoaData=(projectId,d)=>{const u={...hoaData,[projectId]:d};setHoaData(u);try{localStorage.setItem("hoa-submissions",JSON.stringify(u));}catch{}triggerSave();};
+  const saveHoaData=(projectId,d)=>{const u={...hoaData,[projectId]:d};setHoaData(u);try{localStorage.setItem("hoa-submissions",JSON.stringify(u));}catch{}triggerSave();const proj=projects.find(p=>p.id===projectId);if(d.hoaStatus)logActivity('HOA status updated',`HOA: ${d.hoaStatus}`,projectId,proj?.name);};
   const [hoaPanel,setHoaPanel]=useState(null);
   const [taskInstructions,setTaskInstructions]=useState([]);
   const [howToPanel,setHowToPanel]=useState(null);
@@ -159,9 +160,11 @@ export default function App(){
   const buildEmailExtra=p=>{const notes=parseNotes(p.notes||'');const city=getCityData(p.id,cityData);const hoa=getHOAData(p.id,hoaData);const ms=getProjectMilestones(p,paymentData);const pend=ms.find(m=>m.status==='Pending'&&m.amount>0);const ctr=p.contracts?.[0];return{address:notes.address,email:notes.email,phone:notes.phone,jurisdiction:city.jurisdiction,planCheckNumber:city.planCheckNumber,permitNumber:city.permitNumber,hoaName:hoa.hoaName,hoaContact:hoa.contactName,hoaPhone:hoa.contactPhone,hoaEmail:hoa.contactEmail,milestoneName:pend?.label||'',milestoneAmount:pend?'$'+Number(pend.amount).toLocaleString():'',estStart:ctr?.estStart||p.start||''};};
   const [analyseModal,setAnalyseModal]=useState(null);
   const handleAnalyseSave=(projectId,updates,milestones)=>{
+    const p=projects.find(x=>x.id===projectId);
     saveProjects(prev=>prev.map(p=>p.id===projectId?{...p,...updates}:p));
     if(milestones&&milestones.length>0) savePaymentData(projectId,milestones);
     triggerSave();
+    logActivity('Contract analysed',`Contract saved to project`,projectId,p?.name);
   };
 
   const NOTIF_DEF={enabled:true,redZone:true,week78:true,payment:true,workflow:false};
@@ -348,7 +351,7 @@ export default function App(){
   const [pendingThread,setPendingThread]=useState(null);
   const [inboxSourceProjectId,setInboxSourceProjectId]=useState(null);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
-  const updateProjectNotes=(id,notes)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));};
+  const updateProjectNotes=(id,notes)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));const proj=projects.find(p=>p.id===id);logActivity('Notes updated','Project notes saved',id,proj?.name);};
   const updateProjectName=(id,name)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
   const updateProjectFields=(id,updates)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,...updates}:p));};
   const patchProjectNow=(id,fields)=>{
@@ -356,8 +359,19 @@ export default function App(){
     fetch(`${API_BASE}/api/supabase/projects/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)}).catch(console.error);
   };
   const saveRemindersNow=(id,reminders)=>patchProjectNow(id,{reminders});
+
+  const logActivity=(action,detail,projectId=null,projectName=null)=>{
+    try{
+      const userName=currentUser||session?.user?.user_metadata?.full_name||'Unknown';
+      fetch(`${API_BASE}/api/activity`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:projectId,project_name:projectName,user_name:userName,action,detail})}).catch(()=>{});
+    }catch(e){}
+  };
+
   const togglePhaseFromDetail=(projectId,stepId)=>{
     const today=new Date().toISOString().slice(0,10);
+    const proj=projects.find(p=>String(p.id)===String(projectId));
+    const currentStep=proj?.workflow?.find(m=>m.milestoneId===stepId);
+    const completing=currentStep?.status!=='Completed';
     saveProjects(prev=>prev.map(p=>{
       if(String(p.id)!==String(projectId)) return p;
       const baseWorkflow=Array.isArray(p.workflow)&&p.workflow.length>0
@@ -367,6 +381,7 @@ export default function App(){
       const phases=(Array.isArray(p.phases)?p.phases:[]).map(ph=>ph&&ph.id===stepId?{...ph,status:ph.status==='done'?'not_started':'done',dateCompleted:ph.status==='done'?null:today}:ph);
       return{...p,phases,workflow};
     }));
+    if(completing&&currentStep)logActivity('Workflow step completed',`Step ${stepId}: ${currentStep.label||stepId}`,projectId,proj?.name);
   };
   const updateProjectType=(id,type)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,type}:p));};
 
@@ -448,6 +463,9 @@ export default function App(){
       return{...p,phases,workflow};
     }));
   };
+
+  const [activityLog,setActivityLog]=useState([]);
+  const loadActivityLog=()=>{fetch(`${API_BASE}/api/activity`).then(r=>r.json()).then(d=>{if(Array.isArray(d))setActivityLog(d);}).catch(()=>{});};
 
   const MemberAv=({name,size})=><Av name={name} size={size} colorMap={teamMembers}/>;
   const [confirmDelete,setConfirmDelete]=useState(null);
@@ -852,6 +870,34 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           );
         })}
       </div>
+      <div style={{...S.card,marginTop:8}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:'var(--section-header)',letterSpacing:'2px',fontFamily:'monospace',textTransform:'uppercase'}}>Activity Log</div>
+          <button onClick={loadActivityLog} style={{...S.ghost,fontSize:10,padding:'3px 10px'}}>↺ Refresh</button>
+        </div>
+        {activityLog.length===0?(
+          <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',padding:'16px 0',textAlign:'center'}}>No activity yet — actions will appear here as the team works.</div>
+        ):(
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead><tr>{['Who','Action','Detail','Project','When'].map(h=><th key={h} style={{...S.th,padding:'6px 10px'}}>{h}</th>)}</tr></thead>
+            <tbody>{activityLog.map((e,i)=>{
+              const dt=new Date(e.created_at);
+              const now=new Date();
+              const diff=Math.floor((now-dt)/60000);
+              const when=diff<1?'just now':diff<60?`${diff}m ago`:diff<1440?`${Math.floor(diff/60)}h ago`:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+              return(
+                <tr key={e.id} style={{background:i%2===0?'transparent':'var(--bg-row-alt)'}}>
+                  <td style={{...S.td,padding:'7px 10px',fontWeight:700,color:'var(--accent)',fontSize:11}}>{e.user_name}</td>
+                  <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-body)'}}>{e.action}</td>
+                  <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-muted)'}}>{e.detail||'—'}</td>
+                  <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-sub)'}}>{e.project_name||'—'}</td>
+                  <td style={{...S.td,padding:'7px 10px',fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',whiteSpace:'nowrap'}}>{when}</td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
   const getTaskInstruction=(stepId,city)=>{
@@ -1146,7 +1192,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       <div><label style={S.label}>Designer</label><select style={{...S.input,width:"100%"}} value={form.designer} onChange={e=>setForm({...form,designer:e.target.value})}>{Object.keys(teamMembers).map(d=><option key={d}>{d}</option>)}</select></div>
       <div style={{gridColumn:"1/-1"}}><label style={S.label}>Notes</label><textarea style={{...S.input,height:70,resize:"vertical"}} value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></div>
     </div>
-    <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"flex-end"}}><button style={S.ghost} onClick={()=>setIntake(false)}>Cancel</button><button style={S.btn} onClick={()=>{saveProjects(prev=>[...prev,{id:'TRU-'+String(prev.length+1).padStart(3,'0'),name:form.job||'New Project',client:form.client||'',city:form.city||'',type:form.type,designer:form.designer,status:'In Progress',phase:'Schematic',start:new Date().toISOString().slice(0,10),end:'',pct:0,stamp:'No',permit:'No',contract:parseFloat(form.contract)||0,invoiced:0,team:[],workflow:generateWorkflow(new Date().toISOString().slice(0,10),form.designer),contracts:[]}]);setIntake(false);}}>Save</button></div>
+    <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"flex-end"}}><button style={S.ghost} onClick={()=>setIntake(false)}>Cancel</button><button style={S.btn} onClick={()=>{const newName=form.job||'New Project';saveProjects(prev=>[...prev,{id:'TRU-'+String(prev.length+1).padStart(3,'0'),name:newName,client:form.client||'',city:form.city||'',type:form.type,designer:form.designer,status:'In Progress',phase:'Schematic',start:new Date().toISOString().slice(0,10),end:'',pct:0,stamp:'No',permit:'No',contract:parseFloat(form.contract)||0,invoiced:0,team:[],workflow:generateWorkflow(new Date().toISOString().slice(0,10),form.designer),contracts:[]}]);logActivity('New project created',`${newName} — ${form.designer||''}`,null,newName);setIntake(false);}}>Save</button></div>
     </div></div>
       )}
       {showImport&&<ImportModal/>}
@@ -1171,7 +1217,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
       {assignP&&<AssignModal project={assignP} projects={projects} setProjects={saveProjects} teamMembers={teamMembers} onClose={()=>setAssignP(null)}/>}
       <nav style={S.nav}>
         <div style={S.logo}>TRUPLANS</div>
-        {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"],["inbox","Inbox"],["ai","AI"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);}}>{l}</button>)}
+        {[["dashboard","Dashboard"],["projects","Projects"],["gantt","Gantt"],["tasks","Tasks"],["team","Team"],["inbox","Inbox"],["ai","AI"]].map(([id,l])=><button key={id} style={S.tab(tab===id)} onClick={()=>{setTab(id);setDetailProjectId(null);if(id==='team')loadActivityLog();}}>{l}</button>)}
         <div ref={searchRef} style={{position:'relative',marginLeft:16,display:'flex',alignItems:'center'}}>
           <input
             value={searchQ}

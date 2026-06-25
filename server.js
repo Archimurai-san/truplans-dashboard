@@ -177,6 +177,23 @@ app.get('/api/health', (req, res) => {
   res.json({ status: "ok", keyLoaded: API_KEY.length > 0 });
 });
 
+// --- Activity Log ---
+app.post('/api/activity', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'Supabase not available' });
+  const { project_id, project_name, user_name, action, detail } = req.body;
+  if (!user_name || !action) return res.status(400).json({ error: 'user_name and action required' });
+  const { error } = await supabase.from('activity_log').insert({ project_id, project_name, user_name, action, detail });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+app.get('/api/activity', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'Supabase not available' });
+  const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 app.post('/api/claude', async (req, res) => {
   if (!API_KEY) return res.status(500).json({ error: "Anthropic API key not loaded — check Supabase app_config table" });
   res.setTimeout(610000);
