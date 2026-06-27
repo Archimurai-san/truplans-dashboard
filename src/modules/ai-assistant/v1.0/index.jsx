@@ -44,10 +44,7 @@ function Message({ msg }) {
   );
 }
 
-export function AiAssistant({ projects = [], activeProjectId = null }) {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hi! I\'m TruPlans AI. Ask me anything about zoning standards, project workflow, or any project in the system.' }
-  ]);
+export function AiAssistant({ projects = [], activeProjectId = null, messages, setMessages }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(activeProjectId || '');

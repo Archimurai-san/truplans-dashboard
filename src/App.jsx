@@ -350,6 +350,7 @@ export default function App(){
   const [gmailThreads,setGmailThreads]=useState([]);
   const [pendingThread,setPendingThread]=useState(null);
   const [inboxSourceProjectId,setInboxSourceProjectId]=useState(null);
+  const [aiMessages,setAiMessages]=useState([{role:'assistant',content:"Hi! I'm TruPlans AI. Ask me anything about zoning standards, project workflow, or any project in the system."}]);
   const detailProject=detailProjectId?projects.find(p=>p.id===detailProjectId):null;
   const updateProjectNotes=(id,notes)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,notes}:p));const proj=projects.find(p=>p.id===id);logActivity('Notes updated','Project notes saved',id,proj?.name);};
   const updateProjectName=(id,name)=>{saveProjects(prev=>prev.map(p=>p.id===id?{...p,name}:p));};
@@ -1333,7 +1334,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="tasks"&&<Tasks/>}
             {tab==="team"&&<Team/>}
             {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''} onEmailTemplate={p=>setEmailModal(p)} sourceProject={inboxSourceProjectId?projects.find(p=>p.id===inboxSourceProjectId):null} onBackToProject={()=>{goToProject(inboxSourceProjectId);setInboxSourceProjectId(null);}}/>}
-            {tab==="ai"&&<AiAssistant projects={projects} activeProjectId={detailProjectId}/>}
+            {tab==="ai"&&<AiAssistant projects={projects} activeProjectId={detailProjectId} messages={aiMessages} setMessages={setAiMessages}/>}
           </>
         )}
       </main>
