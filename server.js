@@ -182,8 +182,20 @@ app.post('/api/activity', async (req, res) => {
   if (!supabase) return res.status(500).json({ error: 'Supabase not available' });
   const { project_id, project_name, user_name, action, detail } = req.body;
   if (!user_name || !action) return res.status(400).json({ error: 'user_name and action required' });
-  const { error } = await supabase.from('activity_log').insert({ project_id, project_name, user_name, action, detail });
-  if (error) return res.status(500).json({ error: error.message });
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: existing } = await supabase.from('activity_log')
+    .select('id, count')
+    .eq('user_name', user_name)
+    .eq('action', action)
+    .eq('project_id', project_id || '')
+    .gte('created_at', tenMinAgo)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (existing && existing.length > 0) {
+    await supabase.from('activity_log').update({ count: (existing[0].count || 1) + 1, detail }).eq('id', existing[0].id);
+  } else {
+    await supabase.from('activity_log').insert({ project_id, project_name, user_name, action, detail, count: 1 });
+  }
   res.json({ ok: true });
 });
 

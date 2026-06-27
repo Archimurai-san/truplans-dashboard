@@ -878,26 +878,45 @@ Set included:true/false per contract. Extract real payment milestones with amoun
         </div>
         {activityLog.length===0?(
           <div style={{fontSize:11,color:'var(--text-faint)',fontFamily:'monospace',padding:'16px 0',textAlign:'center'}}>No activity yet — actions will appear here as the team works.</div>
-        ):(
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <thead><tr>{['Who','Action','Detail','Project','When'].map(h=><th key={h} style={{...S.th,padding:'6px 10px'}}>{h}</th>)}</tr></thead>
-            <tbody>{activityLog.map((e,i)=>{
-              const dt=new Date(e.created_at);
-              const now=new Date();
-              const diff=Math.floor((now-dt)/60000);
-              const when=diff<1?'just now':diff<60?`${diff}m ago`:diff<1440?`${Math.floor(diff/60)}h ago`:dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-              return(
-                <tr key={e.id} style={{background:i%2===0?'transparent':'var(--bg-row-alt)'}}>
-                  <td style={{...S.td,padding:'7px 10px',fontWeight:700,color:'var(--accent)',fontSize:11}}>{e.user_name}</td>
-                  <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-body)'}}>{e.action}</td>
-                  <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-muted)'}}>{e.detail||'—'}</td>
-                  <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-sub)'}}>{e.project_name||'—'}</td>
-                  <td style={{...S.td,padding:'7px 10px',fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',whiteSpace:'nowrap'}}>{when}</td>
-                </tr>
-              );
-            })}</tbody>
-          </table>
-        )}
+        ):(()=>{
+          const now=new Date();
+          const todayStr=now.toDateString();
+          const todayRows=activityLog.filter(e=>new Date(e.created_at).toDateString()===todayStr);
+          const earlierRows=activityLog.filter(e=>new Date(e.created_at).toDateString()!==todayStr);
+          const dayGroups={};
+          earlierRows.forEach(e=>{const d=new Date(e.created_at).toDateString();if(!dayGroups[d])dayGroups[d]={date:new Date(e.created_at),count:0,projects:new Set(),designers:new Set()};dayGroups[d].count++;dayGroups[d].projects.add(e.project_name);dayGroups[d].designers.add(e.user_name);});
+          const fmtTime=dt=>{const d=new Date(dt);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});};
+          return(<>
+            {todayRows.length>0&&<>
+              <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:6,marginTop:4}}>Today</div>
+              <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16}}>
+                <thead><tr>{['Who','Action','Detail','Project','When'].map(h=><th key={h} style={{...S.th,padding:'6px 10px'}}>{h}</th>)}</tr></thead>
+                <tbody>{todayRows.map((e,i)=>(
+                  <tr key={e.id} style={{background:i%2===0?'transparent':'var(--bg-row-alt)'}}>
+                    <td style={{...S.td,padding:'7px 10px',fontWeight:700,color:'var(--accent)',fontSize:11}}>{e.user_name}</td>
+                    <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-body)'}}>{e.action}{e.count>1&&<span style={{marginLeft:6,background:'var(--accent)',color:'#fff',borderRadius:99,fontSize:9,padding:'1px 6px',fontFamily:'monospace'}}>{e.count}×</span>}</td>
+                    <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-muted)'}}>{e.detail||'—'}</td>
+                    <td style={{...S.td,padding:'7px 10px',fontSize:11,color:'var(--text-sub)'}}>{e.project_name||'—'}</td>
+                    <td style={{...S.td,padding:'7px 10px',fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fmtTime(e.created_at)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </>}
+            {Object.keys(dayGroups).length>0&&<>
+              <div style={{fontSize:9,color:'var(--text-faint)',fontFamily:'monospace',letterSpacing:'2px',textTransform:'uppercase',marginBottom:6}}>Earlier</div>
+              {Object.entries(dayGroups).map(([d,g])=>(
+                <div key={d} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 10px',borderRadius:4,background:'var(--bg-secondary)',marginBottom:4,fontSize:11,color:'var(--text-muted)'}}>
+                  <span style={{fontWeight:700,color:'var(--text-body)',minWidth:80}}>{g.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
+                  <span>{g.count} action{g.count!==1?'s':''}</span>
+                  <span>·</span>
+                  <span>{g.projects.size} project{g.projects.size!==1?'s':''}</span>
+                  <span>·</span>
+                  <span>{g.designers.size} designer{g.designers.size!==1?'s':''}</span>
+                </div>
+              ))}
+            </>}
+          </>);
+        })()}
       </div>
     </div>
   );
