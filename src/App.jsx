@@ -1372,7 +1372,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
             {tab==="dashboard"&&<Dash/>}
             {tab==="projects"&&<Projs/>}
             {tab==="gantt"&&<Gantt/>}
-            {tab==="tasks"&&<Tasks/>}
+            {tab==="tasks"&&Tasks()}
             {tab==="team"&&<Team/>}
             {tab==="inbox"&&<Inbox projects={projects} onOpenProject={goToProject} threads={gmailThreads} onSetThreads={setGmailThreads} initialThread={pendingThread} onInitialThreadConsumed={()=>setPendingThread(null)} searchFilter={searchQ} userEmail={session?.user?.email||''} onEmailTemplate={p=>setEmailModal(p)} sourceProject={inboxSourceProjectId?projects.find(p=>p.id===inboxSourceProjectId):null} onBackToProject={()=>{goToProject(inboxSourceProjectId);setInboxSourceProjectId(null);}}/>}
             {tab==="ai"&&<AiAssistant projects={projects} activeProjectId={detailProjectId} messages={aiMessages} setMessages={setAiMessages}/>}

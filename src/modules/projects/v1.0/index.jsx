@@ -6,6 +6,12 @@ import { S, fmt$, doOpenPath, parseNotes, Av, Sb, Pb, ST, SLABadge, getSLAStatus
 
 const PROJECT_TYPES=["Room Addition","ADU - New","ADU - Garage Conv.","Garage Conv.","Commercial Int.","High Ceiling Conv.","Single Story Addition","Two Story Addition","Simple Remodel","Open Concept Remodel","Whole House Makeover","Build a Deck","Patio Cover","Build a Garage"];
 
+// Stable module-level helpers — defined here so they never remount on parent re-renders
+const PanelLbl=({t})=><div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t}</div>;
+const PanelFld=({label,children,col})=><div style={{marginBottom:12,gridColumn:col||''}}><PanelLbl t={label}/>{children}</div>;
+const InfoRow=({label,value,href,onClick})=>value?(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:10}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:2,flexShrink:0}}>{label}</span>{href?<a href={href} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',wordBreak:'break-all'}}>{value}</a>:onClick?<span onClick={onClick} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',cursor:'pointer',wordBreak:'break-all'}}>{value}</span>:<span style={{fontSize:12,color:'var(--text-body)',wordBreak:'break-all'}}>{value}</span>}</div>):null;
+const ContactField=({label,value,onChange,onBlur,href,placeholder})=>(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:8}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:7,flexShrink:0}}>{label}</span><div style={{flex:1,display:'flex',gap:6,alignItems:'center'}}><input value={value} onChange={e=>onChange(e.target.value)} onBlur={e=>onBlur(e.target.value)} placeholder={placeholder} style={{...S.input,fontSize:11,flex:1,padding:'4px 8px'}}/>{value&&href&&<a href={href} target="_blank" rel="noreferrer" style={{fontSize:10,color:'var(--accent)',fontFamily:'monospace',flexShrink:0,opacity:0.8}}>↗</a>}</div></div>);
+
 
 function PDFPanel({panel, onClose}) {
   if (!panel) return null;
@@ -101,8 +107,8 @@ function CityPanel({project,initData,onClose,onUpdate}){
   const removeRound=i=>{const rounds=(data.rounds||[]).filter((_,ri)=>ri!==i).map((r,ri)=>({...r,round:ri+1}));commit({...data,rounds});setConfirmRemove(null);};
   const handleApproval=date=>{const d=date?new Date(date):null;const exp=(d&&!isNaN(d.getTime()))?(()=>{const x=new Date(d);x.setFullYear(x.getFullYear()+1);return x.toISOString().slice(0,10);})():'';updMany({permitApprovalDate:date,...(!data.permitExpiryDate&&exp?{permitExpiryDate:exp}:{})});};
   const badge=CITY_STATUS_BADGE[data.planCheckStatus]||CITY_STATUS_BADGE['Not Submitted'];
-  const Lbl=({t})=><div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t}</div>;
-  const Fld=({label,children})=><div style={{marginBottom:12}}><Lbl t={label}/>{children}</div>;
+  const Lbl=PanelLbl;
+  const Fld=PanelFld;
   return(
     <div style={{position:'fixed',top:0,right:0,width:'55%',height:'100vh',background:'var(--bg-card)',borderLeft:'2px solid var(--border-primary)',zIndex:183,display:'flex',flexDirection:'column',boxShadow:'-8px 0 32px rgba(0,0,0,0.5)'}}>
       <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border-primary)',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,gap:12}}>
@@ -187,8 +193,8 @@ function HOAPanel({project,initData,onClose,onUpdate}){
   };
   const onLetterInputChange=e=>{const f=e.target.files?.[0];if(f){upd('approvalLetterPath',f.name);e.target.value='';}};
   const badge=HOA_STATUS_BADGE[data.hoaStatus]||HOA_STATUS_BADGE['Not Started'];
-  const Lbl=({t})=><div style={{fontSize:10,color:'var(--text-muted)',fontFamily:'monospace',textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>{t}</div>;
-  const Fld=({label,children,col})=><div style={{marginBottom:12,gridColumn:col||''}}><Lbl t={label}/>{children}</div>;
+  const Lbl=PanelLbl;
+  const Fld=PanelFld;
   const Toggle=({value,onChange})=>(
     <div style={{display:'flex',gap:4}}>
       {['No','Yes'].map((l,i)=><button key={l} onClick={()=>onChange(i===1)} style={{background:value===(i===1)?'var(--accent)':'transparent',color:value===(i===1)?'#fff':'var(--text-muted)',border:'1px solid var(--border-secondary)',borderRadius:4,padding:'3px 12px',fontSize:11,cursor:'pointer',fontWeight:value===(i===1)?700:400}}>{l}</button>)}
@@ -411,8 +417,6 @@ function ProjectDetail({project,paymentData,contractPaths,teamMembers,onBack,onU
   const currentBucket=WEEK_BUCKETS.find(b=>b.week===currentWeek);
   const dueThisWeek=(currentBucket?.steps||[]).map(id=>({...PHASES_WILLIS_WORKFLOW.find(p=>p.id===id),status:getStepStatus(id)}));
   const behindSchedule=WEEK_BUCKETS.filter(b=>b.week<currentWeek).flatMap(b=>b.steps).filter(id=>getStepStatus(id)!=='Completed').map(id=>({...PHASES_WILLIS_WORKFLOW.find(p=>p.id===id),status:getStepStatus(id)}));
-  const InfoRow=({label,value,href,onClick})=>value?(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:10}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:2,flexShrink:0}}>{label}</span>{href?<a href={href} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',wordBreak:'break-all'}}>{value}</a>:onClick?<span onClick={onClick} style={{fontSize:12,color:'var(--accent)',textDecoration:'underline',cursor:'pointer',wordBreak:'break-all'}}>{value}</span>:<span style={{fontSize:12,color:'var(--text-body)',wordBreak:'break-all'}}>{value}</span>}</div>):null;
-  const ContactField=({label,value,onChange,onBlur,href,placeholder})=>(<div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:8}}><span style={{fontSize:10,color:'var(--text-faint)',fontFamily:'monospace',minWidth:84,textTransform:'uppercase',letterSpacing:'1px',paddingTop:7,flexShrink:0}}>{label}</span><div style={{flex:1,display:'flex',gap:6,alignItems:'center'}}><input value={value} onChange={e=>onChange(e.target.value)} onBlur={e=>onBlur(e.target.value)} placeholder={placeholder} style={{...S.input,fontSize:11,flex:1,padding:'4px 8px'}}/>{value&&href&&<a href={href} target="_blank" rel="noreferrer" style={{fontSize:10,color:'var(--accent)',fontFamily:'monospace',flexShrink:0,opacity:0.8}}>↗</a>}</div></div>);
   return(
     <div style={{animation:'slideInRight 0.2s ease-out'}}>
       <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:24,flexWrap:'wrap'}}>
