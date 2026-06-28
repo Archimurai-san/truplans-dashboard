@@ -559,6 +559,21 @@ export default function App(){
           asLead:projects.filter(p=>p.designer===name&&p.status==='In Progress').length,
         })),
       };
+      // Fetch last 7 days of activity for per-designer section
+      let activityByDesigner={};
+      try{
+        const actRes=await fetch(`${API_BASE}/api/activity`);
+        const actData=await actRes.json();
+        if(Array.isArray(actData)){
+          const weekAgo=Date.now()-7*24*60*60*1000;
+          actData.filter(e=>new Date(e.created_at).getTime()>weekAgo).forEach(e=>{
+            const d=e.user_name||'Unknown';
+            if(!activityByDesigner[d])activityByDesigner[d]=[];
+            activityByDesigner[d].push({action:e.action,detail:e.detail||'',project:e.project_name||'',count:e.count||1,created_at:e.created_at});
+          });
+        }
+      }catch(_){}
+      reportData.activityByDesigner=activityByDesigner;
       const result=await window.electronAPI.generateWeeklyReport(reportData);
       setReportStatus({ok:true,filepath:result.filepath});
       setTimeout(()=>setReportStatus(null),4000);

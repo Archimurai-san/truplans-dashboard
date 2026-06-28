@@ -261,6 +261,22 @@ function buildReportHTML(data) {
     </div>`).join('')}</div>
   </div>
 
+  ${data.activityByDesigner && Object.keys(data.activityByDesigner).length > 0 ? `
+  <div class="section no-break" style="page-break-before:always">
+    <div class="section-title">What The Team Shipped This Week</div>
+    ${Object.entries(data.activityByDesigner).map(([designer, entries]) => {
+      const actionIcon = a => a.includes('Workflow')||a.includes('step')?'✓':a.includes('Payment')||a.includes('Collected')?'💰':a.includes('Contract')?'📋':a.includes('project')?'🆕':'·';
+      return `<div class="no-break" style="margin-bottom:16px">
+        <div style="font-family:monospace;font-weight:700;font-size:11px;color:#1a1a2e;border-bottom:1px solid #e9456033;padding-bottom:4px;margin-bottom:6px">${designer.toUpperCase()}</div>
+        ${entries.slice(0,10).map(e=>`<div style="display:flex;gap:8px;padding:3px 0;font-size:10px;color:#444">
+          <span style="color:#e94560;min-width:14px">${actionIcon(e.action)}</span>
+          <span style="flex:1">${e.action}${e.count>1?` <span style="background:#e9456022;color:#e94560;border-radius:99px;padding:0 5px;font-size:8.5px">${e.count}×</span>`:''} ${e.project?`— <span style="font-weight:600">${e.project}</span>`:''}</span>
+          <span style="color:#bbb;font-family:monospace;font-size:9px;white-space:nowrap">${new Date(e.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+        </div>`).join('')}
+      </div>`;
+    }).join('')}
+  </div>` : ''}
+
   <div class="footer"><span>TruPlans Dashboard — Weekly Status Report</span><span>Generated ${data.generatedAt} · CONFIDENTIAL</span></div>
   </body></html>`
 }
