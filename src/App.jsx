@@ -279,16 +279,23 @@ export default function App(){
       clientEmail:   row.client_email   || '',
       clientAddress: row.client_address || '',
       reminders: Array.isArray(row.reminders) ? row.reminders : [],
+      paymentMilestones: Array.isArray(row.payment_milestones) ? row.payment_milestones : [],
     });
     const channel=sbClient.channel('projects-realtime')
       .on('postgres_changes',{event:'*',schema:'public',table:'projects'},payload=>{
         if(payload.eventType==='INSERT'||payload.eventType==='UPDATE'){
           const updated=dbToApp(payload.new);
           _remoteUpdate.current=true;
+          const isPending=_pendingProjects.current&&_pendingProjects.current.some(p=>p.id===updated.id);
           setProjects(prev=>{
             const exists=prev.some(p=>p.id===updated.id);
-            return exists?prev.map(p=>p.id===updated.id?{...p,...updated,workflow:p.workflow&&p.workflow.length>0?p.workflow:updated.workflow,team:p.team||[],teamRoles:p.teamRoles||{},assignNote:p.assignNote||'',contracts:p.contracts||[]}:p):[...prev,{...updated,team:[],contracts:[]}];
+            return exists?prev.map(p=>p.id===updated.id?{...p,...updated,
+              workflow:isPending&&p.workflow&&p.workflow.length>0?p.workflow:updated.workflow&&updated.workflow.length>0?updated.workflow:p.workflow||[],
+              team:p.team||[],teamRoles:p.teamRoles||{},assignNote:p.assignNote||'',contracts:p.contracts||[]}:p):[...prev,{...updated,team:[],contracts:[]}];
           });
+          if(updated.paymentMilestones&&updated.paymentMilestones.length>0){
+            setPaymentData(prev=>({...prev,[updated.id]:updated.paymentMilestones}));
+          }
         } else if(payload.eventType==='DELETE'&&payload.old?.id){
           _remoteUpdate.current=true;
           setProjects(prev=>prev.filter(p=>p.id!==payload.old.id));
@@ -432,18 +439,18 @@ export default function App(){
     if(Array.isArray(updates.contracts)){
       const ctr=updates.contracts.find(c=>Array.isArray(c.paymentMilestones)&&c.paymentMilestones.length>0);
       if(ctr){
-        const existing=getProjectMilestones(ctrP,paymentData);
-        if(existing.length>0){
-          let changed=false;
-          const synced=existing.map((m,i)=>{
-            const cm=ctr.paymentMilestones[i];
-            if(!cm) return m;
-            if(cm.paid&&m.status!=='Collected'){changed=true;return{...m,status:'Collected'};}
-            if(!cm.paid&&m.status==='Collected'){changed=true;return{...m,status:'Pending'};}
-            return m;
-          });
-          if(changed) savePaymentData(ctrP.id,synced);
-        }
+        // Always recalculate invoiced from contract payment milestones
+        const collected=ctr.paymentMilestones.filter(m=>m.paid).reduce((s,m)=>s+(Number(m.amount)||0),0);
+        saveProjects(prev=>prev.map(p=>p.id===ctrP.id?{...p,invoiced:collected}:p));
+        // Sync contract payments to paymentData so Dashboard + PaymentPanel stay in sync
+        const synced=ctr.paymentMilestones.map((m,i)=>({
+          code:String(m.id||m.code||i+1),
+          label:String(m.label||m.description||''),
+          desc:String(m.trigger||''),
+          amount:Number(m.amount)||0,
+          status:m.paid?'Collected':'Pending',
+        }));
+        savePaymentData(ctrP.id,synced,true);
       }
     }
   };
