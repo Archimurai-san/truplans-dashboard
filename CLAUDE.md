@@ -93,11 +93,14 @@ Confirm the (!) decisions with Radovan before building each one.
 ### v1.3 — Project Detail + Email
 1. **Permanent action button row** on every Project Detail page (top-right): **Delete | Workflow | Assign Team | Contracts | Close**. Simplify the "In Progress" status menu — keep the status changer only, drop duplicated summary/buttons.
 2. **Rename Project Name button** — edit a project name after creation.
-3. **Email Agent tab** — four templates with dynamic merge fields from project records:
-   Schedule Zoom Design Meeting (Willis voice); Follow-up After Design Meeting (Molly voice);
-   Design Meeting Summary (scope, change orders + pricing, electrical allowances, Drive/Matterport/YouTube links, next steps);
-   Planning Dept Zoning Inquiry (zoning, APN, tract, lot, setbacks, FAR, height; auto-fills address + scope).
-   (!) Decide first: how the existing v1.0 Gmail subject pre-fill relates to this new read/categorize/draft tab.
+3. **Email Agent tab** — two-level menu. Six hardcoded groups (design-meeting,
+   city-submittal, engineering, hoa-submittal, payment-reminder, permit-approved),
+   unlimited templates per group stored in Supabase table `email_templates`.
+   Add / edit / soft-delete from the UI, same pattern as `task_instructions`.
+   See `EMAIL_TEMPLATES_HANDOFF.md`.
+   DECIDED (Jul 8 2026): the v1.0 subject pre-fill is replaced by the `subject`
+   column on `email_templates`. Both subject and body run through the same
+   merge-field substitution at render time. One source of truth.
 
 ### Reliability & housekeeping (low-risk, alongside the above)
 - **Auto-updater** — silent updates, data preserved across versions.
