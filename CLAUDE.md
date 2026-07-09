@@ -15,6 +15,15 @@ roadmap, and the final goal. Keep it current as work progresses.
 - **Version every meaningful change** (e.g. 1.2.0 -> 1.2.1) for clean rollback points.
 - Radovan is the architect, not a deep developer — he runs the commands; you write the code and tell him exactly where it goes.
 
+### RADOVAN RULE — MANDATORY CHECKLIST (enforced every session, no exceptions)
+1. **Show exactly what will change** — paste the old lines and new lines, wait for explicit **YES** before using the Edit tool.
+2. **One file at a time** — never edit two files in the same response. Wait for YES after each one.
+3. **Test after every single file change** — confirm it works in `npm run dev` before touching the next file.
+4. **If anything breaks** — stop immediately, revert to backup, no new changes until Radovan says go.
+5. **Never silent-fail** — if an upload, API call, or save fails, show the error. Do not hide it with try/catch and move on.
+
+If Radovan says **"Radovan Rule"** — stop everything, revert all changes from this session, and do not proceed until he gives a specific YES on a new plan.
+
 ## 2. The project
 TruPlans Dashboard — Windows desktop app for TruPlans Inc (client CEO: Chris Doering).
 Stack: Electron + React + Vite + Express (`server.js`) + Supabase + Anthropic API.
