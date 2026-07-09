@@ -38,15 +38,18 @@ Stack: Electron + React + Vite + Express (`server.js`) + Supabase + Anthropic AP
 - Build pipeline: `npm run electron:build` -> Vite (React) -> esbuild (server bundle) -> electron-builder NSIS installer.
 
 ## 3. Current release
-**v1.2.0 shipped** (Jun 2026): Task KB, Gantt week zones + designer filter + year switching,
-maps CSP fix, Inbox Gmail connect fix + planning@ merged endpoint, Contract Analyser
-duplicate fix, API key rotated to Supabase. Next: v1.2.1 installer with Inbox fixes.
+**v1.5.7 shipped** (Jul 8 2026): new Contract Analyser with tool-use
+extraction (3 formats), Supabase PDF storage, Open button handles
+https:// URLs. Branch: `modular-restructure`.
 
-## 3a. Build Status (per Build Status Map — Jun 20 2026, 47% complete)
+Earlier: v1.2.0 (Jun 2026) Task KB, Gantt, maps CSP fix, API key
+moved to Supabase.
+
+## 3a. Build Status (per Build Status Map — Jul 8 2026)
 | Section | Status |
 |---|---|
 | A-01 Core App & Infrastructure | 6/7 — Auto-updater pending |
-| A-02 Contract Analyser | 3/5 — Scope of Work redesign + PDF Open button pending |
+| A-02 Contract Analyser | 5/5 — DONE in v1.5.7 |
 | A-03 Project Management | 4/7 — Action button row, Rename, Status menu pending |
 | A-04 Tasks & Workflow KB | 4/4 — DONE in v1.2.0 |
 | A-05 Email | 2/3 — Email Agent tab pending |
@@ -88,11 +91,9 @@ To show a step's instructions for a project in city X:
 Confirm the (!) decisions with Radovan before building each one.
 
 ### v1.3 — Project Detail + Email
-1. **Scope of Work redesign** (Project Detail): Contract Analyser **Y -> green check, N -> red X**.
-   (!) Decide first: (a) live pull vs saved snapshot; (b) manual override allowed?; (c) field mapping across the 3 contract formats.
-2. **Permanent action button row** on every Project Detail page (top-right): **Delete | Workflow | Assign Team | Contracts | Close**. Simplify the "In Progress" status menu — keep the status changer only, drop duplicated summary/buttons.
-3. **Rename Project Name button** — edit a project name after creation.
-4. **Email Agent tab** — four templates with dynamic merge fields from project records:
+1. **Permanent action button row** on every Project Detail page (top-right): **Delete | Workflow | Assign Team | Contracts | Close**. Simplify the "In Progress" status menu — keep the status changer only, drop duplicated summary/buttons.
+2. **Rename Project Name button** — edit a project name after creation.
+3. **Email Agent tab** — four templates with dynamic merge fields from project records:
    Schedule Zoom Design Meeting (Willis voice); Follow-up After Design Meeting (Molly voice);
    Design Meeting Summary (scope, change orders + pricing, electrical allowances, Drive/Matterport/YouTube links, next steps);
    Planning Dept Zoning Inquiry (zoning, APN, tract, lot, setbacks, FAR, height; auto-fills address + scope).
@@ -100,7 +101,6 @@ Confirm the (!) decisions with Radovan before building each one.
 
 ### Reliability & housekeeping (low-risk, alongside the above)
 - **Auto-updater** — silent updates, data preserved across versions.
-- **Contract PDF "Open" button** reliability on all machines.
 - **Gantt year switching** (currently hardcoded to 2026).
 - Remove unused hardcoded API key in `App.jsx`; rotate `config.json` key if ever exposed.
 - Verify on team machines: sign-in persistence on fresh installs; cross-computer sync (change on one -> hard-refresh other within 30s); Change Job # migration behaves correctly.
