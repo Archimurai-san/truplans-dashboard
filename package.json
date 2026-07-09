@@ -3,7 +3,7 @@
   "description": "TruPlans project management dashboard for architectural design and construction workflows",
   "author": "Radovan Marusic <marusic.radovan@gmail.com>",
   "private": true,
-  "version": "1.5.6",
+  "version": "1.5.7",
   "type": "module",
   "main": "electron.cjs",
   "scripts": {

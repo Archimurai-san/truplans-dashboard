@@ -75,6 +75,9 @@ Return ONLY valid JSON, no markdown, no backticks. Leave fields empty/0/[] if no
 {"contractFormat":"","clientLastName":"","clientFirstNames":"","fullAddress":"","phone1":"","phone2":"","email":"","workOrderDate":"","contractDate":"","signedDate":"","projectNumber":"","docusignId":"","contractorCompany":"","contractorLicense":"","archTotal":0,"civilTotal":0,"structuralTotal":0,"landscapeTotal":0,"grandTotal":0,"approxStartDate":"","approxCompletionDate":"","estimatedConstructionTime":"","paymentMilestones":[{"code":"","description":"","amount":0,"trigger":""}],"scopeOfWork":[{"category":"","description":"","included":"Y"}],"newWork":[],"demoWork":[],"signatureDate":"","signedByName":"","includedItems":[],"excludedItems":[]}`;
 
 
+const SAVE_CONTRACT_TOOL={name:"save_contract",description:"Save the extracted contract data in the TruPlans dashboard field shape.",input_schema:{type:"object",properties:{contractFormat:{type:"string"},clientLastName:{type:"string"},clientFirstNames:{type:"string"},fullAddress:{type:"string"},phone1:{type:"string"},phone2:{type:"string"},email:{type:"string"},workOrderDate:{type:"string"},contractDate:{type:"string"},signedDate:{type:"string"},projectNumber:{type:"string"},docusignId:{type:"string"},contractorCompany:{type:"string"},contractorLicense:{type:"string"},archTotal:{type:"number"},civilTotal:{type:"number"},structuralTotal:{type:"number"},landscapeTotal:{type:"number"},grandTotal:{type:"number"},approxStartDate:{type:"string"},approxCompletionDate:{type:"string"},estimatedConstructionTime:{type:"string"},paymentMilestones:{type:"array",items:{type:"object",properties:{code:{type:"string"},description:{type:"string"},amount:{type:"number"},trigger:{type:"string"}}}},scopeOfWork:{type:"array",items:{type:"object",properties:{category:{type:"string"},description:{type:"string"},included:{type:"string",enum:["Y","N"]}}}},newWork:{type:"array",items:{type:"string"}},demoWork:{type:"array",items:{type:"string"}},signatureDate:{type:"string"},signedByName:{type:"string"},includedItems:{type:"array",items:{type:"string"}},excludedItems:{type:"array",items:{type:"string"}}},required:["contractFormat","clientLastName","grandTotal","scopeOfWork","paymentMilestones"]}};
+
+
 function AnalyseModal({project,onClose,onSave}){
   const [phase,setPhase]=useState('pick');
   const [addAsNew,setAddAsNew]=useState(false);
@@ -83,6 +86,7 @@ function AnalyseModal({project,onClose,onSave}){
   const [errMsg,setErrMsg]=useState('');
   const [edited,setEdited]=useState(null);
   const fileInputRef=useRef(null);
+  const b64Ref=useRef(null);
 
   const pickFile=async()=>{
     if(window.electronAPI?.openFile){
@@ -108,7 +112,8 @@ function AnalyseModal({project,onClose,onSave}){
     try{
       const b64=filePath?._blob ? filePath.data : await window.electronAPI?.readFileBase64(filePath);
       if(!b64)throw new Error('Could not read file — check the path is accessible');
-      const payload={model:'claude-sonnet-4-6',max_tokens:6000,messages:[{role:'user',content:[
+      b64Ref.current=b64;
+      const payload={model:'claude-sonnet-4-6',max_tokens:8000,tools:[SAVE_CONTRACT_TOOL],tool_choice:{type:'tool',name:'save_contract'},messages:[{role:'user',content:[
         {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
         {type:'text',text:ANALYSE_PROMPT}
       ]}]};
@@ -123,10 +128,9 @@ function AnalyseModal({project,onClose,onSave}){
         data=await res.json();
       }
       if(data.error)throw new Error(JSON.stringify(data.error));
-      const raw=data.content?.[0]?.text||'{}';
-      const m=raw.match(/\{[\s\S]*\}/);
-      if(!m)throw new Error('No JSON in AI response');
-      const parsed=JSON.parse(m[0]);
+      const toolUse=(data.content||[]).find(b=>b.type==='tool_use'&&b.name==='save_contract');
+      if(!toolUse)throw new Error('No structured data in AI response');
+      const parsed=toolUse.input;
       if(!parsed.grandTotal){
         parsed.grandTotal=(parsed.archTotal||0)+(parsed.civilTotal||0)+(parsed.structuralTotal||0)+(parsed.landscapeTotal||0);
       }
@@ -138,7 +142,7 @@ function AnalyseModal({project,onClose,onSave}){
   const upd=(k,v)=>setEdited(p=>({...p,[k]:v}));
   const updMs=(i,k,v)=>setEdited(p=>({...p,paymentMilestones:p.paymentMilestones.map((m,mi)=>mi===i?{...m,[k]:v}:m)}));
 
-  const save=()=>{
+  const save=async()=>{
     const e=edited;
     const clientName=[e.clientFirstNames,e.clientLastName].filter(Boolean).join(' ');
     const notesParts=[];
@@ -160,6 +164,14 @@ function AnalyseModal({project,onClose,onSave}){
       desc:String(m.trigger||''),amount:Number(m.amount)||0,status:'Pending'
     }));
     const cityFromAddr=e.fullAddress?(e.fullAddress.match(/,\s*([A-Za-z\s]+),?\s*(?:CA\s*)?\d{5}/)?.[1]?.trim()||null):null;
+    let contractPath=filename;
+    try{
+      if(b64Ref.current){
+        const r=await fetch(`${API_BASE}/api/storage/upload-contract`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:project.id,filename,base64:b64Ref.current})});
+        const j=await r.json();
+        if(j.ok&&j.url) contractPath=j.url;
+      }
+    }catch(_){}
     onSave(project.id,{
       client:clientName||project.client,
       contract:Number(e.grandTotal)||0,
@@ -168,7 +180,7 @@ function AnalyseModal({project,onClose,onSave}){
       scopeOfWork:e.scopeOfWork||[],
       newWork:e.newWork||[],
       demoWork:e.demoWork||[],
-      contractPath:filename,
+      contractPath,
       ...(cityFromAddr&&!project.city?{city:cityFromAddr}:{}),
       contracts:project.contracts&&project.contracts.length>0&&!addAsNew?project.contracts.map((c,i)=>i===0?{...CONTRACT_TEMPLATE,...e,id:c.id}:c):[...(addAsNew&&project.contracts.length>0?project.contracts:[]),{...CONTRACT_TEMPLATE,...e,id:Date.now()}]
     },milestones);

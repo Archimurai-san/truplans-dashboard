@@ -163,6 +163,7 @@ export default function App(){
     const p=projects.find(x=>x.id===projectId);
     saveProjects(prev=>prev.map(p=>p.id===projectId?{...p,...updates}:p));
     if(milestones&&milestones.length>0) savePaymentData(projectId,milestones);
+    if(updates.contractPath) saveContractPath(projectId,updates.contractPath);
     triggerSave();
     logActivity('Contract analysed',`Contract saved to project`,projectId,p?.name);
   };

@@ -597,15 +597,15 @@ const _dbt={};
 function dbt(key,fn,ms=500){clearTimeout(_dbt[key]);_dbt[key]=setTimeout(fn,ms);}
 
 function doOpenPath(rawPath){
-  if(!window.electronAPI){alert('This feature requires the desktop app');return;}
-  let p=String(rawPath||'');
-  if(p.startsWith('file:///')) p=p.slice(8);
-  else if(p.startsWith('file://')) p=p.slice(7);
-  const fileUrl='file:///'+p.replace(/\\/g,'/');
-  console.log('doOpenPath | original:',rawPath,'| fileUrl:',fileUrl);
-  window.electronAPI.openExternal(fileUrl)
-    .then(()=>console.log('openExternal success'))
-    .catch(e=>{console.log('openExternal error:',e);alert('Could not open file. Error: '+String(e));});
+  const p=String(rawPath||'');
+  if(p.startsWith('https://')||p.startsWith('http://')){
+    window.open(p,'_blank','noopener');
+    return;
+  }
+  if(!window.electronAPI){alert('This feature requires the desktop app — local file paths cannot be opened in the browser.');return;}
+  const url='file:///'+p.replace(/^file:\/\/\/?/,'').replace(/\\/g,'/');
+  window.electronAPI.openExternal(url)
+    .catch(e=>{alert('Could not open file. Error: '+String(e));});
 }
 
 function parseNotes(notes){

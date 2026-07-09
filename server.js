@@ -510,6 +510,26 @@ app.post('/api/supabase/projects/rename', async (req, res) => {
   }
 });
 
+app.post('/api/storage/upload-contract', async (req, res) => {
+  try {
+    const { projectId, filename, base64 } = req.body;
+    if (!projectId || !filename || !base64) return res.status(400).json({ error: 'Missing fields' });
+    const buf = Buffer.from(base64, 'base64');
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${projectId}/${Date.now()}_${safeName}`;
+    const { error } = await supabase.storage.from('contract-pdfs').upload(storagePath, buf, {
+      contentType: 'application/pdf',
+      upsert: false
+    });
+    if (error) return res.status(500).json({ error: error.message });
+    const { data } = supabase.storage.from('contract-pdfs').getPublicUrl(storagePath);
+    res.json({ ok: true, url: data.publicUrl });
+  } catch (err) {
+    console.error('[storage] upload-contract error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/gmail/auth', (req, res) => {
   const oauth2 = makeOAuth2Client();
   if (!oauth2) return res.status(500).send('Gmail credentials not configured');
