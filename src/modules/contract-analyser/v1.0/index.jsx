@@ -341,7 +341,7 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   const [phases,setPhases]=useState(()=>project.phases&&project.phases.length===23?project.phases.map(p=>({...p})):makeDefaultPhases());
   const [expandedPhase,setExpandedPhase]=useState(null);
   const [inlineOpen,setInlineOpen]=useState(false);
-  const cyclePhase=id=>{const o=["not_started","in_progress","done"];setPhases(prev=>prev.map(p=>{if(p.id!==id)return p;const ni=(o.indexOf(p.status)+1)%o.length;return{...p,status:o[ni],dateCompleted:o[ni]==="done"?new Date().toISOString().slice(0,10):p.dateCompleted};}));};
+  const cyclePhase=id=>{const o=["not_started","in_progress","done"];const phToW={done:'Completed',not_started:'Not Started',in_progress:'In Progress'};const cur=phases.find(p=>p.id===id);if(!cur)return;const ni=(o.indexOf(cur.status)+1)%o.length;const ns=o[ni];const today=new Date().toISOString().slice(0,10);setPhases(prev=>prev.map(p=>p.id!==id?p:{...p,status:ns,dateCompleted:ns==="done"?today:p.dateCompleted}));const baseWF=Array.isArray(project.workflow)&&project.workflow.length>0?project.workflow:[];onUpdate?.({workflow:baseWF.map(m=>m&&m.milestoneId===id?{...m,status:phToW[ns]||m.status}:m)});};
   const _phInit=useRef(false);
   const _phLastHash=useRef('');
   useEffect(()=>{
