@@ -10,7 +10,7 @@ import {
   SEARCH_PRI, searchProjects, PROJECTS_INIT, PHASES, getStepDays,
   generateTasksFromProjects, getNotificationAlerts,
   STATUS_COLOR, PRIORITY_COLOR, DC_INIT,
-  WORKFLOW_MILESTONES, generateWorkflow, TEAM_ROLES, PALETTE,
+  WORKFLOW_MILESTONES, generateWorkflow, derivePhase, TEAM_ROLES, PALETTE,
   GANTT_S, GANTT_E, TDAYS, fmt$,
   PMT_TEMPLATE, PMT_OVERRIDES, getProjectMilestones,
   CITY_DEFAULTS, CITY_STATUS_OPTIONS, ROUND_STATUS, CITY_STATUS_DOT, CITY_STATUS_BADGE, CITY_EMPTY, getCityData,
@@ -762,7 +762,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           <td style={{...S.td,color:"var(--text-sub)",fontSize:10}}>{p.client}</td>
           <td style={{...S.td,color:"var(--text-muted)",fontSize:10}}>{p.type}</td>
           <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"wrap"}}><div style={{position:"relative"}}><MemberAv name={p.designer} size={20}/><div style={{position:"absolute",bottom:-1,right:-1,width:6,height:6,borderRadius:"50%",background:"#e94560",border:"1px solid #0d0d1a"}}/></div>{(p.team||[]).map(m=><MemberAv key={m} name={m} size={16}/>)}<button onClick={e=>{e.stopPropagation();setAssignP(p);}} style={{background:"none",border:"1px dashed #333",borderRadius:"50%",width:16,height:16,cursor:"pointer",color:"#555",fontSize:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button></div></td>
-          <td style={{...S.td,fontSize:10,color:"#9b59b6"}}>{p.phase}</td>
+          <td style={{...S.td,fontSize:10,color:"#9b59b6"}}>{derivePhase(p)}</td>
           <td style={S.td}><Sb status={p.status}/></td>
           <td style={S.td} onClick={e=>e.stopPropagation()}><SLABadge project={p} compact/></td>
           <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:4}}><div style={{flex:1,minWidth:40}}><Pb pct={p.pct}/></div><span style={{fontSize:9,color:"var(--text-muted)",fontFamily:"monospace"}}>{p.pct}%</span></div></td>

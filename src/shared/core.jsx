@@ -525,6 +525,15 @@ function generateWorkflow(startDate, designer) {
   });
 }
 
+function derivePhase(project){
+  if(Array.isArray(project.workflow)&&project.workflow.length>0){
+    const step=project.workflow.find(m=>m.status!=='Completed');
+    if(!step)return'Complete';
+    return`${step.milestoneId} ${step.label}`;
+  }
+  return project.phase||'';
+}
+
 const TEAM_ROLES = ["Lead Designer","Design Support","Permit Coordinator","Drafting","Project Manager","Trainee","Engineer","Admin"];
 const PALETTE = [
   "#e94560", // Crimson
@@ -720,7 +729,7 @@ export {
   SEARCH_PRI, searchProjects, PROJECTS_INIT, PHASES, getStepDays,
   generateTasksFromProjects, getNotificationAlerts,
   STATUS_COLOR, PRIORITY_COLOR, DC_INIT,
-  WORKFLOW_MILESTONES, generateWorkflow, TEAM_ROLES, PALETTE,
+  WORKFLOW_MILESTONES, generateWorkflow, derivePhase, TEAM_ROLES, PALETTE,
   GANTT_S, GANTT_E, TDAYS, fmt$,
   PMT_TEMPLATE, PMT_OVERRIDES, getProjectMilestones,
   CITY_DEFAULTS, CITY_STATUS_OPTIONS, ROUND_STATUS, CITY_STATUS_DOT, CITY_STATUS_BADGE, CITY_EMPTY, getCityData,
