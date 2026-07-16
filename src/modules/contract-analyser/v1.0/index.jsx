@@ -338,7 +338,26 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   const [pdfTxt,setPdfTxt]=useState("");
   const [aiRes,setAiRes]=useState(null);
   const [newCO,setNewCO]=useState({date:"",description:"",amount:"",status:"Pending"});
-  const [phases,setPhases]=useState(()=>project.phases&&project.phases.length===23?project.phases.map(p=>({...p})):makeDefaultPhases());
+  const [phases,setPhases]=useState(()=>{
+    const wf=Array.isArray(project.workflow)?project.workflow:[];
+    if(wf.length>0){
+      const oldById={};
+      for(const p of(project.phases||[])) if(p&&p.id) oldById[p.id]=p;
+      const WF_STATUS_MAP={Completed:'done','In Progress':'in_progress',Blocked:'in_progress','Not Started':'not_started'};
+      return PHASES_WILLIS_WORKFLOW.map(def=>{
+        const m=wf.find(w=>w&&w.milestoneId===def.id);
+        const old=oldById[def.id]||{};
+        return{
+          id:def.id,
+          status:m?(WF_STATUS_MAP[m.status]||'not_started'):(old.status||'not_started'),
+          dateCompleted:old.dateCompleted||null,
+          initials:old.initials||'',
+          notes:old.notes||''
+        };
+      });
+    }
+    return project.phases&&project.phases.length===23?project.phases.map(p=>({...p})):makeDefaultPhases();
+  });
   const [expandedPhase,setExpandedPhase]=useState(null);
   const [inlineOpen,setInlineOpen]=useState(false);
   const cyclePhase=id=>{const o=["not_started","in_progress","done"];const phToW={done:'Completed',not_started:'Not Started',in_progress:'In Progress'};const cur=phases.find(p=>p.id===id);if(!cur)return;const ni=(o.indexOf(cur.status)+1)%o.length;const ns=o[ni];const today=new Date().toISOString().slice(0,10);setPhases(prev=>prev.map(p=>p.id!==id?p:{...p,status:ns,dateCompleted:ns==="done"?today:p.dateCompleted}));const baseWF=Array.isArray(project.workflow)&&project.workflow.length>0?project.workflow:[];onUpdate?.({workflow:baseWF.map(m=>m&&m.milestoneId===id?{...m,status:phToW[ns]||m.status}:m)});};
