@@ -361,6 +361,7 @@ function ContractModule({project,onClose,onUpdate,inline=false}){
   const [expandedPhase,setExpandedPhase]=useState(null);
   const [inlineOpen,setInlineOpen]=useState(false);
   const cyclePhase=id=>{const o=["not_started","in_progress","done"];const phToW={done:'Completed',not_started:'Not Started',in_progress:'In Progress'};const cur=phases.find(p=>p.id===id);if(!cur)return;const ni=(o.indexOf(cur.status)+1)%o.length;const ns=o[ni];const today=new Date().toISOString().slice(0,10);setPhases(prev=>prev.map(p=>p.id!==id?p:{...p,status:ns,dateCompleted:ns==="done"?today:p.dateCompleted}));const baseWF=Array.isArray(project.workflow)&&project.workflow.length>0?project.workflow:[];onUpdate?.({workflow:baseWF.map(m=>m&&m.milestoneId===id?{...m,status:phToW[ns]||m.status}:m)});};
+  const setPhaseStatus=(id,ns)=>{const phToW={done:'Completed',not_started:'Not Started',in_progress:'In Progress'};const today=new Date().toISOString().slice(0,10);setPhases(prev=>prev.map(p=>p.id!==id?p:{...p,status:ns,dateCompleted:ns==="done"&&!p.dateCompleted?today:p.dateCompleted}));const baseWF=Array.isArray(project.workflow)&&project.workflow.length>0?project.workflow:[];onUpdate?.({workflow:baseWF.map(m=>m&&m.milestoneId===id?{...m,status:phToW[ns]||m.status}:m)});};
   const _phInit=useRef(false);
   const _phLastHash=useRef('');
   useEffect(()=>{
@@ -491,7 +492,7 @@ ${pdfTxt.slice(0,8000)}`}]};
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     {["not_started","in_progress","done"].map(s=>(
-                      <button key={s} onClick={()=>setPhases(prev=>prev.map(p=>p.id===ph.id?{...p,status:s,dateCompleted:s==="done"&&!p.dateCompleted?new Date().toISOString().slice(0,10):p.dateCompleted}:p))} style={{flex:1,padding:"4px 0",fontSize:9,fontFamily:"monospace",cursor:"pointer",borderRadius:3,border:`1px solid ${ph.status===s?"#e94560":"#2a2a4a"}`,background:ph.status===s?"#e9456022":"transparent",color:ph.status===s?"#e94560":"#555",letterSpacing:"0.5px"}}>{s.replace("_"," ").toUpperCase()}</button>
+                      <button key={s} onClick={()=>setPhaseStatus(ph.id,s)} style={{flex:1,padding:"4px 0",fontSize:9,fontFamily:"monospace",cursor:"pointer",borderRadius:3,border:`1px solid ${ph.status===s?"#e94560":"#2a2a4a"}`,background:ph.status===s?"#e9456022":"transparent",color:ph.status===s?"#e94560":"#555",letterSpacing:"0.5px"}}>{s.replace("_"," ").toUpperCase()}</button>
                     ))}
                   </div>
                 </div>
