@@ -192,7 +192,7 @@ export default function App(){
           const newFromInit=PROJECTS_INIT.filter(p=>!remoteIds.has(p.id));
           setProjects(prev=>{
             const prevById=new Map(prev.map(p=>[p.id,p]));
-            const dataMerged=data.map(d=>{const local=prevById.get(d.id);return local?{...d,team:local.team||d.team||[],teamRoles:local.teamRoles||d.teamRoles||{},assignNote:local.assignNote||d.assignNote||'',contracts:(Array.isArray(d.contracts)&&d.contracts.length>0)?d.contracts:(local.contracts||[])}:{...d,team:d.team||[],contracts:d.contracts||[]};});
+            const dataMerged=data.map(d=>{const local=prevById.get(d.id);return local?{...d,team:local.team||d.team||[],teamRoles:local.teamRoles||d.teamRoles||{},assignNote:local.assignNote||d.assignNote||'',contracts:(Array.isArray(d.contracts)&&d.contracts.length>0)?d.contracts:(local.contracts||[]),phases:(Array.isArray(d.phases)&&d.phases.length>0)?d.phases:(local.phases||[])}:{...d,team:d.team||[],contracts:d.contracts||[]};});
             const merged=[...dataMerged,...newFromInit];
             _projInit.current=false;
             return merged;
