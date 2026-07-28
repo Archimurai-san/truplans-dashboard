@@ -10,7 +10,7 @@ import {
   SEARCH_PRI, searchProjects, PROJECTS_INIT, PHASES, getStepDays,
   generateTasksFromProjects, getNotificationAlerts,
   STATUS_COLOR, PRIORITY_COLOR, DC_INIT,
-  WORKFLOW_MILESTONES, generateWorkflow, derivePhase, TEAM_ROLES, PALETTE,
+  WORKFLOW_MILESTONES, generateWorkflow, derivePhase, computeProgress, TEAM_ROLES, PALETTE,
   GANTT_S, GANTT_E, TDAYS, fmt$,
   PMT_TEMPLATE, PMT_OVERRIDES, getProjectMilestones,
   CITY_DEFAULTS, CITY_STATUS_OPTIONS, ROUND_STATUS, CITY_STATUS_DOT, CITY_STATUS_BADGE, CITY_EMPTY, getCityData,
@@ -550,7 +550,7 @@ export default function App(){
           const invoiced=ms.filter(m=>m.status==='Invoiced').reduce((a,m)=>a+m.amount,0);
           const totalMs=ms.reduce((a,m)=>a+m.amount,0);
           return{id:p.id,name:p.name,client:p.client,city:p.city,type:p.type,designer:p.designer,
-            status:p.status,phase:p.phase,pct:p.pct,contract:p.contract,start:p.start,
+            status:p.status,phase:p.phase,pct:computeProgress(p),contract:p.contract,start:p.start,
             slaZone:sla.zone,slaWeek:sla.weekNum,slaDaysRemaining:sla.daysRemaining,slaIsExternal:sla.isExternal,
             collected,invoiced,outstanding:totalMs-collected};
         }),
@@ -593,7 +593,7 @@ export default function App(){
   }),[projects,fD,fS,fT,fSLA]);
   const active=visibleProjects.filter(p=>p.status==="In Progress").length;
   const done=visibleProjects.filter(p=>p.status==="Completed").length;
-  const avgP=Math.round(visibleProjects.filter(p=>p.status==="In Progress").reduce((a,p)=>a+p.pct,0)/Math.max(active,1));
+  const avgP=Math.round(visibleProjects.filter(p=>p.status==="In Progress").reduce((a,p)=>a+computeProgress(p),0)/Math.max(active,1));
   const totC=visibleProjects.reduce((a,p)=>a+p.contract,0);
   const totI=visibleProjects.reduce((a,p)=>a+p.invoiced,0);
   const totCollected=useMemo(()=>visibleProjects.reduce((a,p)=>a+getProjectMilestones(p,paymentData).filter(m=>m.status==='Collected').reduce((s,m)=>s+m.amount,0),0),[visibleProjects,paymentData]);
@@ -658,7 +658,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
     return<div style={S.ov} onClick={()=>setSelP(null)}><div style={S.mod} onClick={e=>e.stopPropagation()}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}><div><div style={{fontSize:10,color:"var(--accent)",letterSpacing:"2px",fontFamily:"monospace"}}>{p.id}</div><div style={{fontSize:18,fontWeight:700,color:"var(--text-bright)"}}>{p.name}</div><div style={{fontSize:12,color:"var(--text-muted)"}}>{p.client} · {p.city}</div></div><Sb status={p.status}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>{[["Contract",fmt$(p.contract)],["Invoiced",fmt$(p.invoiced)],["Balance",fmt$(p.contract-p.invoiced)]].map(([l,v])=><div key={l} style={{background:"var(--bg-page)",borderRadius:6,padding:"12px"}}><div style={{fontSize:9,color:"var(--text-muted)",letterSpacing:"1px",textTransform:"uppercase",fontFamily:"monospace"}}>{l}</div><div style={{fontSize:16,fontWeight:700,color:"var(--text-bright)",marginTop:4}}>{v}</div></div>)}</div>
-      <div style={{marginBottom:16}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}><span>Progress</span><span style={{color:"var(--accent)"}}>{p.pct}%</span></div><Pb pct={p.pct}/></div>
+      <div style={{marginBottom:16}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10,color:"var(--text-muted)",fontFamily:"monospace"}}><span>Progress</span><span style={{color:"var(--accent)"}}>{computeProgress(p)}%</span></div><Pb pct={computeProgress(p)}/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20,fontSize:11}}>{[["Phase",p.phase],["Type",p.type],["Lead",p.designer],["Team",(p.team&&p.team.length>0)?p.team.join(", "):"—"],["Start",p.start],["Target",p.end],["Permit",p.permit],["Contracts",p.contracts.length>0?`${p.contracts.length} attached`:"None"]].map(([l,v])=><div key={l} style={{background:"var(--bg-page)",padding:"8px 10px",borderRadius:4,display:"flex",gap:8}}><span style={{color:"var(--text-faint)",minWidth:72,fontFamily:"monospace",fontSize:10}}>{l}:</span><span style={{color:"var(--text-body)"}}>{v}</span></div>)}</div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button style={{background:"none",border:"1px solid #e74c3c",color:"#e74c3c",borderRadius:4,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"monospace"}} onClick={()=>setConfirmDelete(p)}>🗑 Delete</button><button style={{...S.ghost,borderColor:"#27ae60",color:"#27ae60"}} onClick={()=>{setWorkflowP(p);setSelP(null);}}>📋 Workflow</button><button style={{...S.ghost,borderColor:"#3498db",color:"#3498db"}} onClick={()=>{setAssignP(p);setSelP(null);}}>👥 Assign Team</button><button style={S.btn} onClick={()=>{setCtrP(p);setSelP(null);}}>📄 Contracts</button><button style={S.ghost} onClick={()=>setSelP(null)}>Close</button></div>
     </div></div>;
@@ -765,7 +765,7 @@ Set included:true/false per contract. Extract real payment milestones with amoun
           <td style={{...S.td,fontSize:10,color:"#9b59b6"}}>{derivePhase(p)}</td>
           <td style={S.td}><Sb status={p.status}/></td>
           <td style={S.td} onClick={e=>e.stopPropagation()}><SLABadge project={p} compact/></td>
-          <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:4}}><div style={{flex:1,minWidth:40}}><Pb pct={p.pct}/></div><span style={{fontSize:9,color:"var(--text-muted)",fontFamily:"monospace"}}>{p.pct}%</span></div></td>
+          <td style={S.td}><div style={{display:"flex",alignItems:"center",gap:4}}><div style={{flex:1,minWidth:40}}><Pb pct={computeProgress(p)}/></div><span style={{fontSize:9,color:"var(--text-muted)",fontFamily:"monospace"}}>{computeProgress(p)}%</span></div></td>
           <td style={{...S.td,color:"var(--text-bright)",fontFamily:"monospace",fontSize:10,fontWeight:700}}>{fmt$(p.contract)}</td>
           <td style={{...S.td,color:p.contract-p.invoiced>0?"#f0a842":"#52d68a",fontFamily:"monospace",fontSize:10}}>{fmt$(p.contract-p.invoiced)}</td>
           <td style={S.td} onClick={e=>{e.stopPropagation();setCtrP(p);}}><span style={{fontSize:10,color:p.contracts.length>0?"var(--accent)":"var(--text-ghost)",cursor:"pointer",fontFamily:"monospace",fontWeight:700}}>{p.contracts.length>0?`📄 ${p.contracts.length}`:"+ Add"}</span></td>
@@ -880,8 +880,8 @@ Set included:true/false per contract. Extract real payment milestones with amoun
                           {isLead(p)&&<span style={{fontSize:8,color:teamMembers[name],fontFamily:"monospace",fontWeight:700,flexShrink:0}}>★</span>}
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:4}}>
-                          <div style={{flex:1}}><Pb pct={p.pct} color={teamMembers[name]}/></div>
-                          <span style={{fontSize:9,color:"var(--text-faint)",fontFamily:"monospace",minWidth:26,textAlign:"right"}}>{p.pct}%</span>
+                          <div style={{flex:1}}><Pb pct={computeProgress(p)} color={teamMembers[name]}/></div>
+                          <span style={{fontSize:9,color:"var(--text-faint)",fontFamily:"monospace",minWidth:26,textAlign:"right"}}>{computeProgress(p)}%</span>
                         </div>
                       </div>
                     );

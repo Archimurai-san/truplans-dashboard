@@ -533,6 +533,11 @@ function derivePhase(project){
   }
   return project.phase||'';
 }
+function computeProgress(project){
+  const wf=Array.isArray(project.workflow)?project.workflow:[];
+  if(wf.length>0) return Math.round(wf.filter(m=>m&&m.status==='Completed').length/wf.length*100);
+  return project.pct||0;
+}
 
 const TEAM_ROLES = ["Lead Designer","Design Support","Permit Coordinator","Drafting","Project Manager","Trainee","Engineer","Admin"];
 const PALETTE = [
@@ -729,7 +734,7 @@ export {
   SEARCH_PRI, searchProjects, PROJECTS_INIT, PHASES, getStepDays,
   generateTasksFromProjects, getNotificationAlerts,
   STATUS_COLOR, PRIORITY_COLOR, DC_INIT,
-  WORKFLOW_MILESTONES, generateWorkflow, derivePhase, TEAM_ROLES, PALETTE,
+  WORKFLOW_MILESTONES, generateWorkflow, derivePhase, computeProgress, TEAM_ROLES, PALETTE,
   GANTT_S, GANTT_E, TDAYS, fmt$,
   PMT_TEMPLATE, PMT_OVERRIDES, getProjectMilestones,
   CITY_DEFAULTS, CITY_STATUS_OPTIONS, ROUND_STATUS, CITY_STATUS_DOT, CITY_STATUS_BADGE, CITY_EMPTY, getCityData,
